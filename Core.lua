@@ -33,6 +33,7 @@ local charDefaults = {
     arenaStats = {},
     pveStats = {},
     gatheringStats = {},
+    emoteStats = {},
     session = {},
 }
 
@@ -67,7 +68,7 @@ local function EnsureDefaults(db, def)
             if type(v) == "table" then db[k] = DeepCopy(v) else db[k] = v end
         elseif type(v) == "table" and type(db[k]) == "table"
                and k ~= "spells" and k ~= "bgStats" and k ~= "arenaStats" and k ~= "characters"
-               and k ~= "session" and k ~= "pveStats" and k ~= "gatheringStats" then
+               and k ~= "session" and k ~= "pveStats" and k ~= "gatheringStats" and k ~= "emoteStats" then
             EnsureDefaults(db[k], v)
         end
     end
@@ -209,9 +210,30 @@ function PS:GetTotalGatheringStats()
     for _, charData in pairs(PlayerStatsDB.characters) do
         for gatherType, nodes in pairs(charData.gatheringStats or {}) do
             if not total[gatherType] then total[gatherType] = {} end
-            for node, count in pairs(nodes) do
-                total[gatherType][node] = (total[gatherType][node] or 0) + count
+            for node, data in pairs(nodes) do
+                if not total[gatherType][node] then
+                    total[gatherType][node] = { count = 0, items = {} }
+                end
+                -- Handle both old format (number) and new format (table)
+                if type(data) == "number" then
+                    total[gatherType][node].count = total[gatherType][node].count + data
+                else
+                    total[gatherType][node].count = total[gatherType][node].count + (data.count or 0)
+                    for item, qty in pairs(data.items or {}) do
+                        total[gatherType][node].items[item] = (total[gatherType][node].items[item] or 0) + qty
+                    end
+                end
             end
+        end
+    end
+    return total
+end
+
+function PS:GetTotalEmoteStats()
+    local total = {}
+    for _, charData in pairs(PlayerStatsDB.characters) do
+        for emote, count in pairs(charData.emoteStats or {}) do
+            total[emote] = (total[emote] or 0) + count
         end
     end
     return total
@@ -265,6 +287,14 @@ function PS:GetViewGatheringStats()
     end
     local data = self:GetViewCharData()
     return data and data.gatheringStats or {}
+end
+
+function PS:GetViewEmoteStats()
+    if self.viewMode == "total" then
+        return self:GetTotalEmoteStats()
+    end
+    local data = self:GetViewCharData()
+    return data and data.emoteStats or {}
 end
 
 -- Session reset

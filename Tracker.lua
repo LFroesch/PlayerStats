@@ -3,7 +3,7 @@ local PS = PlayerStats
 
 local HEARTHSTONE_SPELL    = 8690
 local ASTRAL_RECALL_SPELL = 556
-local NAARUS_EMBRACE_SPELL = 466742
+local NAARUS_EMBRACE_SPELL = 1265709
 local PVP_TRINKET_SPELL = 42292
 
 -- Aura-based food/drink/well-fed detection
@@ -33,7 +33,199 @@ local questGoldPending = false
 -- Gathering tracking
 local pendingGatherSpell = nil
 local pendingGatherTarget = nil
+local pendingGatherTime = 0
+local gatherCountedThisNode = false
 
+-- Common social emotes to track
+local TRACKED_EMOTES = {
+    -- Greetings/Farewells
+    ["wave"] = true, ["bow"] = true, ["salute"] = true, ["hello"] = true,
+    ["hi"] = true, ["bye"] = true, ["goodbye"] = true, ["welcome"] = true,
+    -- Positive
+    ["thank"] = true, ["thanks"] = true, ["cheer"] = true, ["clap"] = true,
+    ["congratulate"] = true, ["grats"] = true, ["applaud"] = true, ["bravo"] = true,
+    ["nod"] = true, ["yes"] = true, ["agree"] = true, ["smile"] = true,
+    ["grin"] = true, ["happy"] = true, ["hug"] = true, ["cuddle"] = true,
+    ["comfort"] = true, ["pat"] = true, ["love"] = true, ["kiss"] = true,
+    ["blow"] = true, ["wink"] = true, ["flirt"] = true, ["sexy"] = true,
+    -- Negative
+    ["no"] = true, ["disagree"] = true, ["shrug"] = true, ["sigh"] = true,
+    ["cry"] = true, ["sob"] = true, ["frown"] = true, ["disappointed"] = true,
+    ["angry"] = true, ["rage"] = true, ["frustrated"] = true, ["facepalm"] = true,
+    -- Humor
+    ["laugh"] = true, ["lol"] = true, ["rofl"] = true, ["giggle"] = true,
+    ["chuckle"] = true, ["snicker"] = true, ["cackle"] = true, ["guffaw"] = true,
+    -- Actions
+    ["dance"] = true, ["flex"] = true, ["point"] = true, ["beckon"] = true,
+    ["kneel"] = true, ["beg"] = true, ["grovel"] = true, ["apologize"] = true,
+    ["bonk"] = true, ["poke"] = true, ["slap"] = true, ["tickle"] = true,
+    ["pounce"] = true, ["charge"] = true, ["attacktarget"] = true,
+    -- Taunts/Rude
+    ["rude"] = true, ["taunt"] = true, ["chicken"] = true, ["mock"] = true,
+    ["spit"] = true, ["raspberry"] = true, ["insult"] = true, ["threaten"] = true,
+    ["gloat"] = true, ["train"] = true,
+    -- States
+    ["bored"] = true, ["yawn"] = true, ["sleep"] = true, ["tired"] = true,
+    ["cower"] = true, ["scared"] = true, ["shy"] = true, ["blush"] = true,
+    ["confused"] = true, ["puzzled"] = true, ["curious"] = true, ["think"] = true,
+    ["surprised"] = true, ["gasp"] = true, ["drool"] = true, ["hungry"] = true,
+    -- Sounds/Expressions
+    ["roar"] = true, ["growl"] = true, ["bark"] = true, ["moo"] = true,
+    ["meow"] = true, ["purr"] = true, ["rasp"] = true, ["whistle"] = true,
+    ["cough"] = true, ["burp"] = true, ["fart"] = true, ["sniffle"] = true,
+    ["sniff"] = true, ["snort"] = true, ["crack"] = true,
+    -- Combat/Group
+    ["oom"] = true, ["incoming"] = true, ["charge"] = true, ["flee"] = true,
+    ["retreat"] = true, ["follow"] = true, ["wait"] = true, ["healme"] = true,
+    ["openfire"] = true, ["assist"] = true, ["ready"] = true, ["victory"] = true,
+    ["surrender"] = true, ["doom"] = true,
+    -- Misc
+    ["drink"] = true, ["eat"] = true, ["sit"] = true, ["stand"] = true,
+    ["lay"] = true, ["bounce"] = true, ["fidget"] = true, ["tap"] = true,
+    ["peer"] = true, ["stare"] = true, ["glare"] = true, ["eye"] = true,
+    ["pray"] = true, ["violin"] = true, ["mourn"] = true, ["shoo"] = true,
+}
+
+-- Known gathering materials (itemID -> gatherType) - Classic + TBC (1-70)
+local GATHERING_MATERIALS = {
+    -- ========== MINING ==========
+    -- Ores
+    [2770] = "Mining",   -- Copper Ore
+    [2771] = "Mining",   -- Tin Ore
+    [2775] = "Mining",   -- Silver Ore
+    [2772] = "Mining",   -- Iron Ore
+    [2776] = "Mining",   -- Gold Ore
+    [3858] = "Mining",   -- Mithril Ore
+    [7911] = "Mining",   -- Truesilver Ore
+    [10620] = "Mining",  -- Thorium Ore
+    [11370] = "Mining",  -- Dark Iron Ore
+    [23424] = "Mining",  -- Fel Iron Ore
+    [23425] = "Mining",  -- Adamantite Ore
+    [23426] = "Mining",  -- Khorium Ore
+    [23427] = "Mining",  -- Eternium Ore
+    -- Stones
+    [2835] = "Mining",   -- Rough Stone
+    [2836] = "Mining",   -- Coarse Stone
+    [2838] = "Mining",   -- Heavy Stone
+    [7912] = "Mining",   -- Solid Stone
+    [12365] = "Mining",  -- Dense Stone
+    -- Classic Gems
+    [774] = "Mining",    -- Malachite
+    [818] = "Mining",    -- Tigerseye
+    [1210] = "Mining",   -- Shadowgem
+    [1206] = "Mining",   -- Moss Agate
+    [1705] = "Mining",   -- Lesser Moonstone
+    [1529] = "Mining",   -- Jade
+    [3864] = "Mining",   -- Citrine
+    [7909] = "Mining",   -- Aquamarine
+    [7910] = "Mining",   -- Star Ruby
+    [12800] = "Mining",  -- Azerothian Diamond
+    [12361] = "Mining",  -- Blue Sapphire
+    [12364] = "Mining",  -- Huge Emerald
+    [12799] = "Mining",  -- Large Opal
+    [12363] = "Mining",  -- Arcane Crystal
+    -- TBC Uncommon Gems
+    [21929] = "Mining",  -- Flame Spessarite
+    [23077] = "Mining",  -- Blood Garnet
+    [23079] = "Mining",  -- Deep Peridot
+    [23107] = "Mining",  -- Shadow Draenite
+    [23112] = "Mining",  -- Golden Draenite
+    [23117] = "Mining",  -- Azure Moonstone
+    -- TBC Rare Gems
+    [23436] = "Mining",  -- Living Ruby
+    [23437] = "Mining",  -- Talasite
+    [23438] = "Mining",  -- Star of Elune
+    [23439] = "Mining",  -- Noble Topaz
+    [23440] = "Mining",  -- Dawnstone
+    [23441] = "Mining",  -- Nightseye
+    -- Motes (from mining)
+    [22573] = "Mining",  -- Mote of Fire
+    [22574] = "Mining",  -- Mote of Earth
+
+    -- ========== HERBALISM ==========
+    -- Classic Herbs (1-300)
+    [765] = "Herbalism",   -- Silverleaf
+    [2447] = "Herbalism",  -- Peacebloom
+    [2449] = "Herbalism",  -- Earthroot
+    [785] = "Herbalism",   -- Mageroyal
+    [2450] = "Herbalism",  -- Briarthorn
+    [2452] = "Herbalism",  -- Swiftthistle
+    [2453] = "Herbalism",  -- Bruiseweed
+    [3355] = "Herbalism",  -- Wild Steelbloom
+    [3369] = "Herbalism",  -- Grave Moss
+    [3356] = "Herbalism",  -- Kingsblood
+    [3357] = "Herbalism",  -- Liferoot
+    [3818] = "Herbalism",  -- Fadeleaf
+    [3821] = "Herbalism",  -- Goldthorn
+    [3358] = "Herbalism",  -- Khadgar's Whisker
+    [3819] = "Herbalism",  -- Wintersbite
+    [3820] = "Herbalism",  -- Stranglekelp
+    [4625] = "Herbalism",  -- Firebloom
+    [8831] = "Herbalism",  -- Purple Lotus
+    [8836] = "Herbalism",  -- Arthas' Tears
+    [8838] = "Herbalism",  -- Sungrass
+    [8839] = "Herbalism",  -- Blindweed
+    [8845] = "Herbalism",  -- Ghost Mushroom
+    [8846] = "Herbalism",  -- Gromsblood
+    [13463] = "Herbalism", -- Dreamfoil
+    [13464] = "Herbalism", -- Golden Sansam
+    [13465] = "Herbalism", -- Mountain Silversage
+    [13466] = "Herbalism", -- Plaguebloom
+    [13467] = "Herbalism", -- Icecap
+    [13468] = "Herbalism", -- Black Lotus
+    -- TBC Herbs (300-375)
+    [22785] = "Herbalism", -- Felweed
+    [22786] = "Herbalism", -- Dreaming Glory
+    [22787] = "Herbalism", -- Ragveil
+    [22789] = "Herbalism", -- Terocone
+    [22790] = "Herbalism", -- Ancient Lichen
+    [22791] = "Herbalism", -- Netherbloom
+    [22792] = "Herbalism", -- Nightmare Vine
+    [22793] = "Herbalism", -- Mana Thistle
+    [22794] = "Herbalism", -- Fel Lotus
+    -- Motes (from herbalism)
+    [22575] = "Herbalism", -- Mote of Life
+    [22576] = "Herbalism", -- Mote of Mana
+
+    -- ========== SKINNING ==========
+    -- Classic Leather
+    [2934] = "Skinning",  -- Ruined Leather Scraps
+    [2318] = "Skinning",  -- Light Leather
+    [783] = "Skinning",   -- Light Hide
+    [2319] = "Skinning",  -- Medium Leather
+    [4232] = "Skinning",  -- Medium Hide
+    [4234] = "Skinning",  -- Heavy Leather
+    [4235] = "Skinning",  -- Heavy Hide
+    [4304] = "Skinning",  -- Thick Leather
+    [8169] = "Skinning",  -- Thick Hide
+    [8170] = "Skinning",  -- Rugged Leather
+    [8171] = "Skinning",  -- Rugged Hide
+    -- Classic Special Leather
+    [7286] = "Skinning",  -- Black Whelp Scale
+    [7287] = "Skinning",  -- Red Whelp Scale
+    [15412] = "Skinning", -- Green Dragonscale
+    [15414] = "Skinning", -- Red Dragonscale
+    [15415] = "Skinning", -- Blue Dragonscale
+    [15416] = "Skinning", -- Black Dragonscale
+    [15417] = "Skinning", -- Devilsaur Leather
+    [15419] = "Skinning", -- Warbear Leather
+    [15408] = "Skinning", -- Heavy Scorpid Scale
+    [15410] = "Skinning", -- Scale of Onyxia
+    [17012] = "Skinning", -- Core Leather
+    [15422] = "Skinning", -- Frostsaber Leather
+    [15423] = "Skinning", -- Chimera Leather
+    [20381] = "Skinning", -- Dreamscale
+    -- TBC Leather
+    [25649] = "Skinning", -- Knothide Leather Scraps
+    [25700] = "Skinning", -- Knothide Leather
+    [25699] = "Skinning", -- Crystal Infused Leather
+    [29539] = "Skinning", -- Cobra Scales
+    [29547] = "Skinning", -- Wind Scales
+    [25707] = "Skinning", -- Fel Scales
+    [25708] = "Skinning", -- Thick Clefthoof Leather
+    [29548] = "Skinning", -- Nether Dragonscales
+    [32470] = "Skinning", -- Nethermine Flayer Hide
+}
 
 -- Boss kill dedup (30 second cooldown per boss)
 local bossKillCooldowns = {}
@@ -297,6 +489,7 @@ tracker:SetScript("OnEvent", function(self, event, ...)
         self:RegisterEvent("MERCHANT_CLOSED")
         self:RegisterEvent("PLAYER_MONEY")
         self:RegisterEvent("PLAYER_LOGOUT")
+        self:RegisterEvent("CHAT_MSG_TEXT_EMOTE")
 
         -- Hook jump tracking
         if JumpOrAscendStart then
@@ -325,19 +518,6 @@ tracker:SetScript("OnEvent", function(self, event, ...)
         local destIsMe = destGUID == PS.playerGUID
         local destIsPlayer = destFlags and bit.band(destFlags, COMBATLOG_OBJECT_TYPE_PLAYER) > 0
         local destIsHostile = destFlags and bit.band(destFlags, COMBATLOG_OBJECT_REACTION_HOSTILE) > 0
-
-        -- Hearthstone usage detection
-        elseif event == "UNIT_SPELLCAST_SUCCEEDED" then
-            local unit, spellName = ...
-            if unit ~= "player" or not spellName then return end
-
-            if spellName == "Hearthstone"
-            or spellName == "Astral Recall"
-            or spellName == "Naaru's Embrace"
-            then
-                db.stats.hearthstoneUses =
-                    (db.stats.hearthstoneUses or 0) + 1
-            end
 
         -- KILLING BLOWS (player + pets)
         if subevent == "PARTY_KILL" and isMine then
@@ -451,12 +631,12 @@ tracker:SetScript("OnEvent", function(self, event, ...)
             end
 
         -- SPELL CAST SUCCESS (cast counter - player only)
-        -- count hearthstoneUses via NAARUS_EMBRACE_SPELL
         elseif isMe and subevent == "SPELL_CAST_SUCCESS" then
             local spellId = arg12
             local spellName = arg13
 
-            if spellId == NAARUS_EMBRACE_SPELL then
+            -- Hearthstone tracking (all teleport-home spells)
+            if spellId == HEARTHSTONE_SPELL or spellId == ASTRAL_RECALL_SPELL or spellId == NAARUS_EMBRACE_SPELL then
                 db.stats.hearthstoneUses = (db.stats.hearthstoneUses or 0) + 1
             end
 
@@ -598,6 +778,8 @@ tracker:SetScript("OnEvent", function(self, event, ...)
         if spellName == "Mining" or spellName == "Herb Gathering" or spellName == "Skinning" then
             pendingGatherSpell = spellName
             pendingGatherTarget = target or "Unknown"
+            pendingGatherTime = GetTime()
+            gatherCountedThisNode = false
         end
 
     -- ======== HEARTHSTONE + CRAFTING + GATHERING + PVP TRINKET ========
@@ -632,34 +814,56 @@ tracker:SetScript("OnEvent", function(self, event, ...)
             if isCrafting and spellID ~= HEARTHSTONE_SPELL then
                 db.stats.itemsCrafted = (db.stats.itemsCrafted or 0) + 1
             end
-            -- Gathering: known spell names with per-node tracking
-            if spellName == "Mining" or spellName == "Herb Gathering" or spellName == "Skinning" then
-                db.stats.nodesGathered = (db.stats.nodesGathered or 0) + 1
-                PS.sessionGathering = PS.sessionGathering + 1
-
-                -- Per-node tracking
-                local gatherType
-                if spellName == "Mining" then gatherType = "Mining"
-                elseif spellName == "Herb Gathering" then gatherType = "Herbalism"
-                else gatherType = "Skinning" end
-
-                local nodeName = pendingGatherTarget or "Unknown"
-                if not db.gatheringStats[gatherType] then db.gatheringStats[gatherType] = {} end
-                db.gatheringStats[gatherType][nodeName] = (db.gatheringStats[gatherType][nodeName] or 0) + 1
-
-                pendingGatherSpell = nil
-                pendingGatherTarget = nil
-            end
+            -- Gathering spell names kept in pendingGatherSpell - actual counting happens on loot
         end
 
-    -- ======== FISHING ======== -- todo: this is a bit of a hack using loot messages, should update
+    -- ======== FISHING & GATHERING LOOT ========
     elseif event == "CHAT_MSG_LOOT" then
         local msg = ...
+        -- Fishing detection
         local mainHand = GetInventoryItemID("player", 16)
         if mainHand then
             local _, _, _, _, _, _, subType = GetItemInfo(mainHand)
             if (subType == "Fishing Poles" or subType == "Fishing Pole") and msg:match("You receive") then
                 db.stats.fishCaught = db.stats.fishCaught + 1
+            end
+        end
+
+        -- Gathering: check if we have a pending gather and looted a known material
+        if pendingGatherSpell and (GetTime() - pendingGatherTime) < 5 then
+            -- Parse item link from loot message: "You receive loot: [Item] x5"
+            local itemLink = msg:match("|c%x+|Hitem:(%d+):")
+            local itemID = itemLink and tonumber(itemLink)
+            local quantity = tonumber(msg:match("x(%d+)")) or 1
+
+            if itemID and GATHERING_MATERIALS[itemID] then
+                local gatherType
+                if pendingGatherSpell == "Mining" then gatherType = "Mining"
+                elseif pendingGatherSpell == "Herb Gathering" then gatherType = "Herbalism"
+                else gatherType = "Skinning" end
+
+                local nodeName = pendingGatherTarget or "Unknown"
+                if not db.gatheringStats[gatherType] then db.gatheringStats[gatherType] = {} end
+                if not db.gatheringStats[gatherType][nodeName] then
+                    db.gatheringStats[gatherType][nodeName] = { count = 0, items = {} }
+                end
+                -- Migrate old format (number) to new format (table)
+                if type(db.gatheringStats[gatherType][nodeName]) == "number" then
+                    db.gatheringStats[gatherType][nodeName] = { count = db.gatheringStats[gatherType][nodeName], items = {} }
+                end
+
+                local nodeData = db.gatheringStats[gatherType][nodeName]
+                -- Only increment count once per gather (first loot item)
+                if not gatherCountedThisNode then
+                    nodeData.count = nodeData.count + 1
+                    gatherCountedThisNode = true
+                    db.stats.nodesGathered = (db.stats.nodesGathered or 0) + 1
+                    PS.sessionGathering = PS.sessionGathering + 1
+                end
+
+                -- Track item received
+                local itemName = GetItemInfo(itemID) or ("Item" .. itemID)
+                nodeData.items[itemName] = (nodeData.items[itemName] or 0) + quantity
             end
         end
 
@@ -772,7 +976,7 @@ tracker:SetScript("OnEvent", function(self, event, ...)
             local pName = PS.playerName
             if pName and msg:match(pName) then
                 if not db.bgStats[bgName] then db.bgStats[bgName] = { wins = 0, losses = 0 } end
-                if msg:match("captured") or msg:match("picked up") then
+                if msg:match("captured") then
                     db.bgStats[bgName].flagsCaptured = (db.bgStats[bgName].flagsCaptured or 0) + 1
                 elseif msg:match("returned") then
                     db.bgStats[bgName].flagsReturned = (db.bgStats[bgName].flagsReturned or 0) + 1
@@ -801,6 +1005,71 @@ tracker:SetScript("OnEvent", function(self, event, ...)
                 questGoldPending = false
             elseif merchantOpen then
                 db.stats.goldFromVendors = (db.stats.goldFromVendors or 0) + delta
+            end
+        end
+
+    -- ======== EMOTE TRACKING ========
+    elseif event == "CHAT_MSG_TEXT_EMOTE" then
+        local msg = ...
+        -- Only track our own emotes (message starts with player name)
+        if msg and PS.playerName and msg:find("^" .. PS.playerName) then
+            -- Extract emote from DoEmote token pattern or common patterns
+            -- Try to match the verb after the player name
+            local emoteVerb = msg:match("^" .. PS.playerName .. " (%w+)")
+            if emoteVerb then
+                emoteVerb = emoteVerb:lower()
+                -- Map common verb forms to base emote
+                local emoteMap = {
+                    -- Greetings
+                    ["waves"] = "wave", ["bows"] = "bow", ["salutes"] = "salute",
+                    ["welcomes"] = "welcome",
+                    -- Positive
+                    ["cheers"] = "cheer", ["claps"] = "clap", ["applauds"] = "applaud",
+                    ["congratulates"] = "congratulate", ["nods"] = "nod", ["agrees"] = "agree",
+                    ["smiles"] = "smile", ["grins"] = "grin", ["hugs"] = "hug",
+                    ["cuddles"] = "cuddle", ["comforts"] = "comfort", ["pats"] = "pat",
+                    ["loves"] = "love", ["kisses"] = "kiss", ["blows"] = "blow",
+                    ["winks"] = "wink", ["flirts"] = "flirt",
+                    -- Negative
+                    ["disagrees"] = "disagree", ["shrugs"] = "shrug", ["sighs"] = "sigh",
+                    ["cries"] = "cry", ["sobs"] = "sob", ["frowns"] = "frown",
+                    ["rages"] = "rage", ["facepalms"] = "facepalm",
+                    -- Humor
+                    ["laughs"] = "laugh", ["giggles"] = "giggle", ["chuckles"] = "chuckle",
+                    ["snickers"] = "snicker", ["cackles"] = "cackle", ["guffaws"] = "guffaw",
+                    -- Actions
+                    ["dances"] = "dance", ["flexes"] = "flex", ["points"] = "point",
+                    ["beckons"] = "beckon", ["kneels"] = "kneel", ["begs"] = "beg",
+                    ["grovels"] = "grovel", ["apologizes"] = "apologize", ["bonks"] = "bonk",
+                    ["pokes"] = "poke", ["slaps"] = "slap", ["tickles"] = "tickle",
+                    ["pounces"] = "pounce", ["charges"] = "charge",
+                    -- Taunts
+                    ["taunts"] = "taunt", ["mocks"] = "mock", ["spits"] = "spit",
+                    ["insults"] = "insult", ["threatens"] = "threaten", ["gloats"] = "gloat",
+                    -- States
+                    ["yawns"] = "yawn", ["sleeps"] = "sleep", ["cowers"] = "cower",
+                    ["blushes"] = "blush", ["drools"] = "drool", ["gasps"] = "gasp",
+                    -- Sounds
+                    ["roars"] = "roar", ["growls"] = "growl", ["barks"] = "bark",
+                    ["moos"] = "moo", ["meows"] = "meow", ["purrs"] = "purr",
+                    ["whistles"] = "whistle", ["coughs"] = "cough", ["burps"] = "burp",
+                    ["farts"] = "fart", ["sniffles"] = "sniffle", ["sniffs"] = "sniff",
+                    ["snorts"] = "snort", ["cracks"] = "crack",
+                    -- Combat
+                    ["flees"] = "flee", ["retreats"] = "retreat", ["follows"] = "follow",
+                    ["waits"] = "wait", ["surrenders"] = "surrender",
+                    -- Misc
+                    ["drinks"] = "drink", ["eats"] = "eat", ["sits"] = "sit",
+                    ["stands"] = "stand", ["lays"] = "lay", ["bounces"] = "bounce",
+                    ["fidgets"] = "fidget", ["taps"] = "tap", ["peers"] = "peer",
+                    ["stares"] = "stare", ["glares"] = "glare", ["eyes"] = "eye",
+                    ["prays"] = "pray", ["mourns"] = "mourn",
+                }
+                local baseEmote = emoteMap[emoteVerb] or emoteVerb
+                if TRACKED_EMOTES[baseEmote] then
+                    if not db.emoteStats then db.emoteStats = {} end
+                    db.emoteStats[baseEmote] = (db.emoteStats[baseEmote] or 0) + 1
+                end
             end
         end
 

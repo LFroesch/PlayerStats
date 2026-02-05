@@ -420,15 +420,33 @@ local GENERAL_STATS = {
         for _, gatherType in ipairs(sortedTypes) do
             local nodes = gatherData[gatherType]
             local total = 0
-            for _, count in pairs(nodes) do total = total + count end
+            for _, data in pairs(nodes) do
+                -- Handle both old format (number) and new format (table)
+                if type(data) == "number" then
+                    total = total + data
+                else
+                    total = total + (data.count or 0)
+                end
+            end
             table.insert(out, { label = "  " .. gatherType, value = tostring(total) })
             local sorted = {}
-            for node, count in pairs(nodes) do
-                table.insert(sorted, { name = node, count = count })
+            for node, data in pairs(nodes) do
+                local count = type(data) == "number" and data or (data.count or 0)
+                local items = type(data) == "table" and data.items or {}
+                table.insert(sorted, { name = node, count = count, items = items })
             end
             table.sort(sorted, function(a, b) return a.count > b.count end)
             for _, nodeData in ipairs(sorted) do
                 table.insert(out, { label = "    " .. nodeData.name, value = tostring(nodeData.count) })
+                -- Show items received from this node
+                local sortedItems = {}
+                for item, qty in pairs(nodeData.items) do
+                    table.insert(sortedItems, { name = item, qty = qty })
+                end
+                table.sort(sortedItems, function(a, b) return a.qty > b.qty end)
+                for _, itemData in ipairs(sortedItems) do
+                    table.insert(out, { label = "      " .. itemData.name, value = tostring(itemData.qty) })
+                end
             end
         end
         return out
@@ -437,6 +455,30 @@ local GENERAL_STATS = {
     { header = "Miscellaneous" },
     { label = "Hearthstone Uses", key = "hearthstoneUses" },
     { label = "Jumps", key = "jumps" },
+    "sep",
+    { header = "Emotes" },
+    { label = "Total Emotes", func = function(s)
+        local total = 0
+        for _, count in pairs(PS:GetViewEmoteStats()) do
+            total = total + count
+        end
+        return tostring(total)
+    end },
+    { generator = function()
+        local out = {}
+        local emoteData = PS:GetViewEmoteStats()
+        local sorted = {}
+        for emote, count in pairs(emoteData) do
+            table.insert(sorted, { name = emote, count = count })
+        end
+        table.sort(sorted, function(a, b) return a.count > b.count end)
+        for _, e in ipairs(sorted) do
+            -- Capitalize first letter for display
+            local displayName = e.name:sub(1,1):upper() .. e.name:sub(2)
+            table.insert(out, { label = "  " .. displayName, value = tostring(e.count) })
+        end
+        return out
+    end },
     "sep",
     { header = "Session" },
     { label = "Session Gathering", func = function(s) return tostring(PS.sessionGathering) end },
@@ -1060,7 +1102,7 @@ sy = sy - 22
 local resetBtn = CreateFrame("Button", nil, settingsFrame, "UIPanelButtonTemplate")
 resetBtn:SetSize(140, 22)
 resetBtn:SetPoint("TOPLEFT", 16, sy)
-resetBtn:SetText("Reset All Stats")
+resetBtn:SetText("Reset All Stats For This Character")
 resetBtn:SetScript("OnClick", function()
     StaticPopup_Show("PLAYERSTATS_CONFIRM_RESET")
 end)
