@@ -1,0 +1,9 @@
+## Interface: 20505
+## Title: PlayerStats
+## Notes: Comprehensive player statistics tracking for TBC Classic
+## SavedVariables: PlayerStatsDB
+
+Core.lua
+Tracker.lua
+Killstreak.lua
+UI.lua
