@@ -755,7 +755,12 @@ local function RenderPvE()
             row.sep:Hide()
             row.label:SetText(inst.name)
             row.label:SetTextColor(0.4, 0.8, 1)
-            local completedStr = (inst.data.completed or 0) > 0 and (inst.data.completed .. " clears") or ""
+            local normalClears = inst.data.completed or 0
+            local heroicClears = inst.data.completedHeroic or 0
+            local completedStr = ""
+            if normalClears > 0 or heroicClears > 0 then
+                completedStr = normalClears .. "N |cffff9900" .. heroicClears .. "H|r"
+            end
             row.value:SetText(completedStr)
             if visIdx % 2 == 0 then row.bg:Show() else row.bg:Hide() end
             row:EnableMouse(false); row:SetScript("OnMouseUp", nil)
@@ -1102,7 +1107,7 @@ sy = sy - 22
 local resetBtn = CreateFrame("Button", nil, settingsFrame, "UIPanelButtonTemplate")
 resetBtn:SetSize(140, 22)
 resetBtn:SetPoint("TOPLEFT", 16, sy)
-resetBtn:SetText("Reset All Stats For This Character")
+resetBtn:SetText("Reset Char Stats")
 resetBtn:SetScript("OnClick", function()
     StaticPopup_Show("PLAYERSTATS_CONFIRM_RESET")
 end)

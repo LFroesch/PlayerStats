@@ -20,7 +20,6 @@ local currentInstance = nil
 -- BG/Arena tracking
 local inBG = false
 local inArena = false
-local arenaBracket = nil
 local bgName = nil
 local bgResultRecorded = false
 
@@ -35,56 +34,6 @@ local pendingGatherSpell = nil
 local pendingGatherTarget = nil
 local pendingGatherTime = 0
 local gatherCountedThisNode = false
-
--- Common social emotes to track
-local TRACKED_EMOTES = {
-    -- Greetings/Farewells
-    ["wave"] = true, ["bow"] = true, ["salute"] = true, ["hello"] = true,
-    ["hi"] = true, ["bye"] = true, ["goodbye"] = true, ["welcome"] = true,
-    -- Positive
-    ["thank"] = true, ["thanks"] = true, ["cheer"] = true, ["clap"] = true,
-    ["congratulate"] = true, ["grats"] = true, ["applaud"] = true, ["bravo"] = true,
-    ["nod"] = true, ["yes"] = true, ["agree"] = true, ["smile"] = true,
-    ["grin"] = true, ["happy"] = true, ["hug"] = true, ["cuddle"] = true,
-    ["comfort"] = true, ["pat"] = true, ["love"] = true, ["kiss"] = true,
-    ["blow"] = true, ["wink"] = true, ["flirt"] = true, ["sexy"] = true,
-    -- Negative
-    ["no"] = true, ["disagree"] = true, ["shrug"] = true, ["sigh"] = true,
-    ["cry"] = true, ["sob"] = true, ["frown"] = true, ["disappointed"] = true,
-    ["angry"] = true, ["rage"] = true, ["frustrated"] = true, ["facepalm"] = true,
-    -- Humor
-    ["laugh"] = true, ["lol"] = true, ["rofl"] = true, ["giggle"] = true,
-    ["chuckle"] = true, ["snicker"] = true, ["cackle"] = true, ["guffaw"] = true,
-    -- Actions
-    ["dance"] = true, ["flex"] = true, ["point"] = true, ["beckon"] = true,
-    ["kneel"] = true, ["beg"] = true, ["grovel"] = true, ["apologize"] = true,
-    ["bonk"] = true, ["poke"] = true, ["slap"] = true, ["tickle"] = true,
-    ["pounce"] = true, ["charge"] = true, ["attacktarget"] = true,
-    -- Taunts/Rude
-    ["rude"] = true, ["taunt"] = true, ["chicken"] = true, ["mock"] = true,
-    ["spit"] = true, ["raspberry"] = true, ["insult"] = true, ["threaten"] = true,
-    ["gloat"] = true, ["train"] = true,
-    -- States
-    ["bored"] = true, ["yawn"] = true, ["sleep"] = true, ["tired"] = true,
-    ["cower"] = true, ["scared"] = true, ["shy"] = true, ["blush"] = true,
-    ["confused"] = true, ["puzzled"] = true, ["curious"] = true, ["think"] = true,
-    ["surprised"] = true, ["gasp"] = true, ["drool"] = true, ["hungry"] = true,
-    -- Sounds/Expressions
-    ["roar"] = true, ["growl"] = true, ["bark"] = true, ["moo"] = true,
-    ["meow"] = true, ["purr"] = true, ["rasp"] = true, ["whistle"] = true,
-    ["cough"] = true, ["burp"] = true, ["fart"] = true, ["sniffle"] = true,
-    ["sniff"] = true, ["snort"] = true, ["crack"] = true,
-    -- Combat/Group
-    ["oom"] = true, ["incoming"] = true, ["charge"] = true, ["flee"] = true,
-    ["retreat"] = true, ["follow"] = true, ["wait"] = true, ["healme"] = true,
-    ["openfire"] = true, ["assist"] = true, ["ready"] = true, ["victory"] = true,
-    ["surrender"] = true, ["doom"] = true,
-    -- Misc
-    ["drink"] = true, ["eat"] = true, ["sit"] = true, ["stand"] = true,
-    ["lay"] = true, ["bounce"] = true, ["fidget"] = true, ["tap"] = true,
-    ["peer"] = true, ["stare"] = true, ["glare"] = true, ["eye"] = true,
-    ["pray"] = true, ["violin"] = true, ["mourn"] = true, ["shoo"] = true,
-}
 
 -- Known gathering materials (itemID -> gatherType) - Classic + TBC (1-70)
 local GATHERING_MATERIALS = {
@@ -489,7 +438,6 @@ tracker:SetScript("OnEvent", function(self, event, ...)
         self:RegisterEvent("MERCHANT_CLOSED")
         self:RegisterEvent("PLAYER_MONEY")
         self:RegisterEvent("PLAYER_LOGOUT")
-        self:RegisterEvent("CHAT_MSG_TEXT_EMOTE")
 
         -- Hook jump tracking
         if JumpOrAscendStart then
@@ -497,6 +445,15 @@ tracker:SetScript("OnEvent", function(self, event, ...)
                 if PS.db then PS.db.stats.jumps = PS.db.stats.jumps + 1 end
             end)
         end
+
+        -- Hook emote tracking
+        hooksecurefunc("DoEmote", function(emote)
+            if PS.db and emote then
+                local e = emote:lower()
+                if not PS.db.emoteStats then PS.db.emoteStats = {} end
+                PS.db.emoteStats[e] = (PS.db.emoteStats[e] or 0) + 1
+            end
+        end)
 
         lastKnownMoney = GetMoney()
         return
@@ -578,6 +535,27 @@ tracker:SetScript("OnEvent", function(self, event, ...)
                         db.spells[spellId].highestHit = amount
                     end
                     if critical then db.spells[spellId].crits = db.spells[spellId].crits + 1 end
+                end
+
+                -- Pet killing blow detection
+                local sourceIsPet = sourceFlags and (bit.band(sourceFlags, COMBATLOG_OBJECT_TYPE_PET) > 0 or bit.band(sourceFlags, COMBATLOG_OBJECT_TYPE_GUARDIAN) > 0)
+                local overkill = (subevent == "SWING_DAMAGE") and arg13 or arg16
+                if sourceIsPet and isMine and overkill and overkill > 0 then
+                    db.stats.totalKills = db.stats.totalKills + 1
+                    PS.sessionKills = PS.sessionKills + 1
+                    if destIsPlayer and destIsHostile then
+                        db.stats.pvpKills = db.stats.pvpKills + 1
+                        PS.sessionPvPKills = PS.sessionPvPKills + 1
+                        if PS.settings and PS.settings.pvpKillSound then
+                            PlaySoundFile("Interface\\AddOns\\PlayerStats\\sound_files\\kaching.ogg", "Master")
+                        end
+                        if PS.OnPvPKill then PS:OnPvPKill(destName) end
+                        if inBG and bgName then
+                            if not db.bgStats[bgName] then db.bgStats[bgName] = { wins = 0, losses = 0 } end
+                            db.bgStats[bgName].kills = (db.bgStats[bgName].kills or 0) + 1
+                        end
+                    end
+                    if PS.RefreshMini then PS:RefreshMini() end
                 end
             end
 
@@ -685,7 +663,13 @@ tracker:SetScript("OnEvent", function(self, event, ...)
 
                     -- Final boss = instance cleared
                     if isFinalBoss then
-                        db.pveStats[instanceName].completed = (db.pveStats[instanceName].completed or 0) + 1
+                        local difficulty = GetInstanceDifficulty and GetInstanceDifficulty() or 1
+                        local isHeroic = (difficulty == 2) and not isRaid
+                        if isHeroic then
+                            db.pveStats[instanceName].completedHeroic = (db.pveStats[instanceName].completedHeroic or 0) + 1
+                        else
+                            db.pveStats[instanceName].completed = (db.pveStats[instanceName].completed or 0) + 1
+                        end
                         if isRaid then
                             db.stats.raidsCompleted = (db.stats.raidsCompleted or 0) + 1
                         else
@@ -889,16 +873,12 @@ tracker:SetScript("OnEvent", function(self, event, ...)
                     bgName = instanceName
                     bgResultRecorded = false
                 end
-            elseif instanceType == "arena" then
+            elseif instanceType == "arena" or (IsActiveBattlefieldArena and IsActiveBattlefieldArena()) then
                 if not inArena then
                     inArena = true
                     inBG = false
                     bgName = instanceName
                     bgResultRecorded = false
-                    local groupSize = GetNumGroupMembers()
-                    if groupSize <= 2 then arenaBracket = "2v2"
-                    elseif groupSize <= 3 then arenaBracket = "3v3"
-                    else arenaBracket = "5v5" end
                 end
             elseif instanceType == "party" or instanceType == "raid" then
                 if instanceName ~= currentInstance then
@@ -910,22 +890,33 @@ tracker:SetScript("OnEvent", function(self, event, ...)
             currentInstance = nil
             inBG = false
             inArena = false
-            arenaBracket = nil
             bgName = nil
         end
 
     -- ======== BG / ARENA RESULTS ========
     elseif event == "UPDATE_BATTLEFIELD_STATUS" then
-        if (inBG or inArena) and not bgResultRecorded then
+        local currentlyInArena = IsActiveBattlefieldArena and IsActiveBattlefieldArena()
+        local currentlyInBG = UnitInBattleground("player") and not currentlyInArena
+        if (currentlyInBG or currentlyInArena) and not bgResultRecorded then
             local winner = GetBattlefieldWinner()
             if winner ~= nil then
                 bgResultRecorded = true
-                local myFaction = UnitFactionGroup("player")
-                local won = (winner == 0 and myFaction == "Horde") or
-                            (winner == 1 and myFaction == "Alliance")
-                local name = bgName or "Unknown"
-                if inArena then
-                    local bracket = arenaBracket or "5v5"
+                local won
+                if currentlyInArena then
+                    local myTeam = GetBattlefieldArenaFaction()
+                    won = (winner == myTeam)
+                else
+                    local myFaction = UnitFactionGroup("player")
+                    won = (winner == 0 and myFaction == "Horde") or
+                          (winner == 1 and myFaction == "Alliance")
+                end
+                local name = bgName or GetInstanceInfo() or "Unknown"
+                if currentlyInArena then
+                    local scores = GetNumBattlefieldScores() or 0
+                    local bracket
+                    if scores <= 4 then bracket = "2v2"
+                    elseif scores <= 6 then bracket = "3v3"
+                    else bracket = "5v5" end
                     if won then
                         db.stats.arenaWins = (db.stats.arenaWins or 0) + 1
                     else
@@ -1008,70 +999,6 @@ tracker:SetScript("OnEvent", function(self, event, ...)
             end
         end
 
-    -- ======== EMOTE TRACKING ========
-    elseif event == "CHAT_MSG_TEXT_EMOTE" then
-        local msg = ...
-        -- Only track our own emotes (message starts with player name)
-        if msg and PS.playerName and msg:find("^" .. PS.playerName) then
-            -- Extract emote from DoEmote token pattern or common patterns
-            -- Try to match the verb after the player name
-            local emoteVerb = msg:match("^" .. PS.playerName .. " (%w+)")
-            if emoteVerb then
-                emoteVerb = emoteVerb:lower()
-                -- Map common verb forms to base emote
-                local emoteMap = {
-                    -- Greetings
-                    ["waves"] = "wave", ["bows"] = "bow", ["salutes"] = "salute",
-                    ["welcomes"] = "welcome",
-                    -- Positive
-                    ["cheers"] = "cheer", ["claps"] = "clap", ["applauds"] = "applaud",
-                    ["congratulates"] = "congratulate", ["nods"] = "nod", ["agrees"] = "agree",
-                    ["smiles"] = "smile", ["grins"] = "grin", ["hugs"] = "hug",
-                    ["cuddles"] = "cuddle", ["comforts"] = "comfort", ["pats"] = "pat",
-                    ["loves"] = "love", ["kisses"] = "kiss", ["blows"] = "blow",
-                    ["winks"] = "wink", ["flirts"] = "flirt",
-                    -- Negative
-                    ["disagrees"] = "disagree", ["shrugs"] = "shrug", ["sighs"] = "sigh",
-                    ["cries"] = "cry", ["sobs"] = "sob", ["frowns"] = "frown",
-                    ["rages"] = "rage", ["facepalms"] = "facepalm",
-                    -- Humor
-                    ["laughs"] = "laugh", ["giggles"] = "giggle", ["chuckles"] = "chuckle",
-                    ["snickers"] = "snicker", ["cackles"] = "cackle", ["guffaws"] = "guffaw",
-                    -- Actions
-                    ["dances"] = "dance", ["flexes"] = "flex", ["points"] = "point",
-                    ["beckons"] = "beckon", ["kneels"] = "kneel", ["begs"] = "beg",
-                    ["grovels"] = "grovel", ["apologizes"] = "apologize", ["bonks"] = "bonk",
-                    ["pokes"] = "poke", ["slaps"] = "slap", ["tickles"] = "tickle",
-                    ["pounces"] = "pounce", ["charges"] = "charge",
-                    -- Taunts
-                    ["taunts"] = "taunt", ["mocks"] = "mock", ["spits"] = "spit",
-                    ["insults"] = "insult", ["threatens"] = "threaten", ["gloats"] = "gloat",
-                    -- States
-                    ["yawns"] = "yawn", ["sleeps"] = "sleep", ["cowers"] = "cower",
-                    ["blushes"] = "blush", ["drools"] = "drool", ["gasps"] = "gasp",
-                    -- Sounds
-                    ["roars"] = "roar", ["growls"] = "growl", ["barks"] = "bark",
-                    ["moos"] = "moo", ["meows"] = "meow", ["purrs"] = "purr",
-                    ["whistles"] = "whistle", ["coughs"] = "cough", ["burps"] = "burp",
-                    ["farts"] = "fart", ["sniffles"] = "sniffle", ["sniffs"] = "sniff",
-                    ["snorts"] = "snort", ["cracks"] = "crack",
-                    -- Combat
-                    ["flees"] = "flee", ["retreats"] = "retreat", ["follows"] = "follow",
-                    ["waits"] = "wait", ["surrenders"] = "surrender",
-                    -- Misc
-                    ["drinks"] = "drink", ["eats"] = "eat", ["sits"] = "sit",
-                    ["stands"] = "stand", ["lays"] = "lay", ["bounces"] = "bounce",
-                    ["fidgets"] = "fidget", ["taps"] = "tap", ["peers"] = "peer",
-                    ["stares"] = "stare", ["glares"] = "glare", ["eyes"] = "eye",
-                    ["prays"] = "pray", ["mourns"] = "mourn",
-                }
-                local baseEmote = emoteMap[emoteVerb] or emoteVerb
-                if TRACKED_EMOTES[baseEmote] then
-                    if not db.emoteStats then db.emoteStats = {} end
-                    db.emoteStats[baseEmote] = (db.emoteStats[baseEmote] or 0) + 1
-                end
-            end
-        end
 
     -- ======== LOGOUT (session save) ========
     elseif event == "PLAYER_LOGOUT" then

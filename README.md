@@ -4,7 +4,7 @@ A comprehensive character statistics addon for WoW TBC Classic. Provides a stats
 
 ## To Install
 
-If installing via zip, extract to your WoW Anniversary folder. Otherwise just install via Curseforge.
+If installing via zip, extract the entire folder to your WoW Anniversary folder. Otherwise just install via Curseforge.
 
 ## Features
 
