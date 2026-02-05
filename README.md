@@ -2,6 +2,10 @@
 
 A comprehensive character statistics addon for WoW TBC Classic. Provides a stats panel and kill tracking system, bringing functionality similar to the character stats pane introduced in Wrath of the Lich King to TBC.
 
+## To Install
+
+If installing via zip, extract to your WoW Anniversary folder. Otherwise just install via Curseforge.
+
 ## Features
 
 - Full character stats panel with a toggleable main window and compact mini bar mode
