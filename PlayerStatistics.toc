@@ -1,6 +1,8 @@
 ## Interface: 20505
-## Title: PlayerStats
+## Title: PlayerStatistics
 ## Notes: Comprehensive player statistics tracking for TBC Classic
+## Version: 1.0.0
+## X-Curse-Project-ID: 1454215
 ## SavedVariables: PlayerStatsDB
 
 Core.lua

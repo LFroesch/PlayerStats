@@ -1,7 +1,7 @@
--- PlayerStats: Comprehensive statistics tracking for TBC Classic
-local addonName = "PlayerStats"
+-- PlayerStatistics: Comprehensive statistics tracking for TBC Classic
+local addonName = "PlayerStatistics"
 local PS = {}
-_G.PlayerStats = PS
+_G.PlayerStatistics = PS
 
 -- Per-character data defaults
 local charDefaults = {
@@ -26,7 +26,8 @@ local charDefaults = {
         pvpTrinketUses = 0,
         -- PvE
         bossKills = 0, dungeonsCompleted = 0, raidBossKills = 0,
-        dungeonBossKills = 0, raidsCompleted = 0,
+        dungeonBossKills = 0, dungeonBossKillsHeroic = 0, raidsCompleted = 0,
+        dungeonsCompletedHeroic = 0,
     },
     spells = {},
     bgStats = {},
@@ -96,7 +97,7 @@ end
 function PS:Print(msg)
     local frame = _G["ChatFrame" .. (self.settings and self.settings.chatFrame or 1)]
     if not frame then frame = DEFAULT_CHAT_FRAME end
-    frame:AddMessage("|cff00ccffPlayerStats:|r " .. msg)
+    frame:AddMessage("|cff00ccffPlayerStatistics:|r " .. msg)
 end
 
 -- Player info
@@ -124,8 +125,8 @@ local SUM_KEYS = {
     "dispels", "bgWins", "bgLosses", "arenaWins", "arenaLosses", "instancesEntered",
     "itemsCrafted", "nodesGathered", "bandagesUsed", "dailiesCompleted",
     "pvpTrinketUses",
-    "bossKills", "dungeonsCompleted", "raidBossKills",
-    "dungeonBossKills", "raidsCompleted",
+    "bossKills", "dungeonsCompleted", "dungeonsCompletedHeroic", "raidBossKills",
+    "dungeonBossKills", "dungeonBossKillsHeroic", "raidsCompleted",
 }
 
 -- Compute total stats across all characters
@@ -194,11 +195,15 @@ function PS:GetTotalPvEStats()
     for _, charData in pairs(PlayerStatsDB.characters) do
         for instance, idata in pairs(charData.pveStats or {}) do
             if not total[instance] then
-                total[instance] = { bosses = {}, completed = 0 }
+                total[instance] = { bosses = {}, bossesHeroic = {}, completed = 0, completedHeroic = 0 }
             end
             total[instance].completed = total[instance].completed + (idata.completed or 0)
+            total[instance].completedHeroic = (total[instance].completedHeroic or 0) + (idata.completedHeroic or 0)
             for boss, count in pairs(idata.bosses or {}) do
                 total[instance].bosses[boss] = (total[instance].bosses[boss] or 0) + count
+            end
+            for boss, count in pairs(idata.bossesHeroic or {}) do
+                total[instance].bossesHeroic[boss] = (total[instance].bossesHeroic[boss] or 0) + count
             end
         end
     end
@@ -227,6 +232,33 @@ function PS:GetTotalGatheringStats()
         end
     end
     return total
+end
+
+function PS:GetTotalSpells()
+    local total = {}
+    for _, charData in pairs(PlayerStatsDB.characters) do
+        for id, data in pairs(charData.spells or {}) do
+            if not total[id] then
+                total[id] = { name = data.name, casts = 0, damage = 0, healing = 0, crits = 0, highestHit = 0 }
+            end
+            total[id].casts = total[id].casts + (data.casts or 0)
+            total[id].damage = total[id].damage + (data.damage or 0)
+            total[id].healing = total[id].healing + (data.healing or 0)
+            total[id].crits = total[id].crits + (data.crits or 0)
+            if (data.highestHit or 0) > total[id].highestHit then
+                total[id].highestHit = data.highestHit
+            end
+        end
+    end
+    return total
+end
+
+function PS:GetViewSpells()
+    if self.viewMode == "total" then
+        return self:GetTotalSpells()
+    end
+    local data = self:GetViewCharData()
+    return data and data.spells or {}
 end
 
 function PS:GetTotalEmoteStats()
@@ -386,20 +418,20 @@ initFrame:SetScript("OnEvent", function(self, event, arg1)
 end)
 
 -- Slash commands
-SLASH_PLAYERSTATS1 = "/ps"
-SLASH_PLAYERSTATS2 = "/playerstats"
-SlashCmdList["PLAYERSTATS"] = function(msg)
+SLASH_PLAYERSTATISTICS1 = "/ps"
+SLASH_PLAYERSTATISTICS2 = "/playerstats"
+SlashCmdList["PLAYERSTATISTICS"] = function(msg)
     local cmd = msg:lower():trim()
     if cmd == "" or cmd == "show" then
-        if PlayerStatsFrame then
-            if PlayerStatsFrame:IsShown() then PlayerStatsFrame:Hide()
-            else PlayerStatsFrame:Show() end
+        if PlayerStatisticsFrame then
+            if PlayerStatisticsFrame:IsShown() then PlayerStatisticsFrame:Hide()
+            else PlayerStatisticsFrame:Show() end
         end
     elseif cmd == "mini" then
-        if PlayerStatsMini then
+        if PlayerStatisticsMini then
             PS.settings.showMini = not PS.settings.showMini
-            if PS.settings.showMini then PlayerStatsMini:Show()
-            else PlayerStatsMini:Hide() end
+            if PS.settings.showMini then PlayerStatisticsMini:Show()
+            else PlayerStatisticsMini:Hide() end
         end
     elseif cmd == "session reset" then
         PS:ResetSession()
@@ -412,7 +444,7 @@ SlashCmdList["PLAYERSTATS"] = function(msg)
     elseif cmd == "streak" then
         PS:Print("Best kill streak: " .. (PS.db and PS.db.stats.bestKillStreak or 0))
     elseif cmd == "reset" then
-        StaticPopup_Show("PLAYERSTATS_CONFIRM_RESET")
+        StaticPopup_Show("PLAYERSTATISTICS_CONFIRM_RESET")
     elseif cmd:match("^announce") then
         local mode = cmd:match("announce%s+(%S+)")
         if mode and (mode == "none" or mode == "say" or mode == "emote" or mode == "group" or mode == "all") then
@@ -433,7 +465,7 @@ SlashCmdList["PLAYERSTATS"] = function(msg)
     end
 end
 
-StaticPopupDialogs["PLAYERSTATS_CONFIRM_RESET"] = {
+StaticPopupDialogs["PLAYERSTATISTICS_CONFIRM_RESET"] = {
     text = "Reset stats for this character? This cannot be undone.",
     button1 = "Reset", button2 = "Cancel",
     OnAccept = function()
@@ -446,7 +478,7 @@ StaticPopupDialogs["PLAYERSTATS_CONFIRM_RESET"] = {
     timeout = 0, whileDead = true, hideOnEscape = true, preferredIndex = 3,
 }
 
-StaticPopupDialogs["PLAYERSTATS_CONFIRM_RESET_ALL"] = {
+StaticPopupDialogs["PLAYERSTATISTICS_CONFIRM_RESET_ALL"] = {
     text = "Reset stats for ALL characters? This cannot be undone.",
     button1 = "Reset All", button2 = "Cancel",
     OnAccept = function()

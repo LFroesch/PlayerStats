@@ -1,5 +1,5 @@
--- PlayerStats: PvP Killstreak system
-local PS = PlayerStats
+-- PlayerStatistics: PvP Killstreak system
+local PS = PlayerStatistics
 
 local streakCount = 0
 local lastKillTime = 0
@@ -25,7 +25,7 @@ local function GetStreakData(count)
 end
 
 -- ============ ANIMATED DISPLAY ============
-local display = CreateFrame("Frame", "PlayerStatsKillstreak", UIParent)
+local display = CreateFrame("Frame", "PlayerStatisticsKillstreak", UIParent)
 display:SetSize(600, 100)
 display:SetPoint("CENTER", 0, 150)
 display:SetFrameStrata("HIGH")

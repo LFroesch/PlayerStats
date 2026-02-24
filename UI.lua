@@ -1,12 +1,12 @@
--- PlayerStats: UI (mini bar + stats window)
-local PS = PlayerStats
+-- PlayerStatistics: UI (mini bar + stats window)
+local PS = PlayerStatistics
 
 -- ============ MINI BAR ============
 local MINI_SIZES = { small = { w = 220, h = 20, font = "GameFontNormalSmall" },
                      medium = { w = 280, h = 24, font = "GameFontNormalSmall" },
                      large = { w = 340, h = 28, font = "GameFontNormal" } }
 
-local mini = CreateFrame("Frame", "PlayerStatsMini", UIParent, "BackdropTemplate")
+local mini = CreateFrame("Frame", "PlayerStatisticsMini", UIParent, "BackdropTemplate")
 mini:SetSize(280, 24)
 mini:SetPoint("TOP", 0, -35)
 mini:SetMovable(true)
@@ -48,8 +48,8 @@ end
 
 mini:SetScript("OnMouseUp", function(self, button)
     if button == "LeftButton" then
-        if PlayerStatsFrame and PlayerStatsFrame:IsShown() then PlayerStatsFrame:Hide()
-        else PlayerStatsFrame:Show() end
+        if PlayerStatisticsFrame and PlayerStatisticsFrame:IsShown() then PlayerStatisticsFrame:Hide()
+        else PlayerStatisticsFrame:Show() end
     end
 end)
 
@@ -60,8 +60,8 @@ mini:SetScript("OnUpdate", function(self, dt)
 end)
 
 -- ============ MAIN FRAME ============
-local f = CreateFrame("Frame", "PlayerStatsFrame", UIParent, "BasicFrameTemplateWithInset")
-f:SetSize(420, 500)
+local f = CreateFrame("Frame", "PlayerStatisticsFrame", UIParent, "BasicFrameTemplateWithInset")
+f:SetSize(460, 520)
 f:SetPoint("CENTER")
 f:SetMovable(true)
 f:EnableMouse(true)
@@ -71,14 +71,14 @@ f:SetScript("OnDragStop", f.StopMovingOrSizing)
 f:Hide()
 
 -- ESC to close
-tinsert(UISpecialFrames, "PlayerStatsFrame")
+tinsert(UISpecialFrames, "PlayerStatisticsFrame")
 
 f.title = f:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
 f.title:SetPoint("TOP", 0, -5)
-f.title:SetText("PlayerStats")
+f.title:SetText("PlayerStatistics")
 
 -- ============ CHARACTER DROPDOWN ============
-local dropdown = CreateFrame("Frame", "PlayerStatsDropdown", f, "UIDropDownMenuTemplate")
+local dropdown = CreateFrame("Frame", "PlayerStatisticsDropdown", f, "UIDropDownMenuTemplate")
 dropdown:SetPoint("TOPRIGHT", -2, -1)
 UIDropDownMenu_SetWidth(dropdown, 120)
 
@@ -276,19 +276,7 @@ local COMBAT_STATS = {
     "sep",
     { header = "Misc" },
     { label = "Critter Kills", key = "critterKills" },
-    { label = "Dispels", key = "dispels" },
-    "sep",
-    { header = "Session" },
-    { label = "Session Time", func = function(s)
-        local e = time() - PS.sessionStart
-        return string.format("%dh %dm", math.floor(e / 3600), math.floor((e % 3600) / 60))
-    end },
-    { label = "Session Kills / Deaths", func = function(s)
-        local kd = PS.sessionDeaths > 0 and string.format("%.1f", PS.sessionKills / PS.sessionDeaths) or "-"
-        return PS.sessionKills .. " / " .. PS.sessionDeaths .. "  (K/D: " .. kd .. ")"
-    end },
-    { label = "Session Damage", func = function(s) return PS:FormatNumber(PS.sessionDamage) end },
-    { label = "Session Healing", func = function(s) return PS:FormatNumber(PS.sessionHealing) end },
+    { label = "Dispels", key = "dispels" }
 }
 
 local PVP_STATS = {
@@ -312,11 +300,12 @@ local PVP_STATS = {
     { header = "Arenas" },
     { label = "Arena Wins", key = "arenaWins" },
     { label = "Arena Losses", key = "arenaLosses" },
-    { label = "Arena Win %", func = function(s)
+    { label = "Arena Win %", collapsibleKey = "arenas", func = function(s)
         local total = (s.arenaWins or 0) + (s.arenaLosses or 0)
         return total > 0 and string.format("%.0f%%", ((s.arenaWins or 0) / total) * 100) or "-"
     end },
     { generator = function()
+        if not PS._expanded or not PS._expanded["arenas"] then return {} end
         local out = {}
         local arenaData = PS:GetViewArenaStats()
         local order = { ["2v2"] = 1, ["3v3"] = 2, ["5v5"] = 3 }
@@ -348,11 +337,12 @@ local PVP_STATS = {
     { header = "Battlegrounds" },
     { label = "BG Wins", key = "bgWins" },
     { label = "BG Losses", key = "bgLosses" },
-    { label = "BG Win %", func = function(s)
+    { label = "BG Win %", collapsibleKey = "battlegrounds", func = function(s)
         local total = (s.bgWins or 0) + (s.bgLosses or 0)
         return total > 0 and string.format("%.0f%%", ((s.bgWins or 0) / total) * 100) or "-"
     end },
     { generator = function()
+        if not PS._expanded or not PS._expanded["battlegrounds"] then return {} end
         local out = {}
         local bgData = PS:GetViewBGStats()
         local sorted = {}
@@ -388,6 +378,18 @@ local PVP_STATS = {
         local total = s.duelsWon + s.duelsLost
         return total > 0 and string.format("%.0f%%", (s.duelsWon / total) * 100) or "-"
     end },
+    "sep",
+    { header = "Session" },
+    { label = "Session Time", func = function(s)
+        local e = time() - PS.sessionStart
+        return string.format("%dh %dm", math.floor(e / 3600), math.floor((e % 3600) / 60))
+    end },
+    { label = "Session Kills / Deaths", func = function(s)
+        local kd = PS.sessionDeaths > 0 and string.format("%.1f", PS.sessionKills / PS.sessionDeaths) or "-"
+        return PS.sessionKills .. " / " .. PS.sessionDeaths .. "  (K/D: " .. kd .. ")"
+    end },
+    { label = "Session Damage", func = function(s) return PS:FormatNumber(PS.sessionDamage) end },
+    { label = "Session Healing", func = function(s) return PS:FormatNumber(PS.sessionHealing) end },
 }
 
 local GENERAL_STATS = {
@@ -408,8 +410,9 @@ local GENERAL_STATS = {
     "sep",
     { header = "Professions" },
     { label = "Fish Caught", key = "fishCaught" },
-    { label = "Nodes Gathered", key = "nodesGathered" },
+    { label = "Nodes Gathered", key = "nodesGathered", collapsibleKey = "gathering" },
     { generator = function()
+        if not PS._expanded or not PS._expanded["gathering"] then return {} end
         local out = {}
         local gatherData = PS:GetViewGatheringStats()
         local sortedTypes = {}
@@ -421,7 +424,6 @@ local GENERAL_STATS = {
             local nodes = gatherData[gatherType]
             local total = 0
             for _, data in pairs(nodes) do
-                -- Handle both old format (number) and new format (table)
                 if type(data) == "number" then
                     total = total + data
                 else
@@ -438,7 +440,6 @@ local GENERAL_STATS = {
             table.sort(sorted, function(a, b) return a.count > b.count end)
             for _, nodeData in ipairs(sorted) do
                 table.insert(out, { label = "    " .. nodeData.name, value = tostring(nodeData.count) })
-                -- Show items received from this node
                 local sortedItems = {}
                 for item, qty in pairs(nodeData.items) do
                     table.insert(sortedItems, { name = item, qty = qty })
@@ -457,7 +458,7 @@ local GENERAL_STATS = {
     { label = "Jumps", key = "jumps" },
     "sep",
     { header = "Emotes" },
-    { label = "Total Emotes", func = function(s)
+    { label = "Total Emotes", collapsibleKey = "emotes", func = function(s)
         local total = 0
         for _, count in pairs(PS:GetViewEmoteStats()) do
             total = total + count
@@ -465,6 +466,7 @@ local GENERAL_STATS = {
         return tostring(total)
     end },
     { generator = function()
+        if not PS._expanded or not PS._expanded["emotes"] then return {} end
         local out = {}
         local emoteData = PS:GetViewEmoteStats()
         local sorted = {}
@@ -473,9 +475,8 @@ local GENERAL_STATS = {
         end
         table.sort(sorted, function(a, b) return a.count > b.count end)
         for _, e in ipairs(sorted) do
-            -- Capitalize first letter for display
             local displayName = e.name:sub(1,1):upper() .. e.name:sub(2)
-            table.insert(out, { label = "  " .. displayName, value = tostring(e.count) })
+            table.insert(out, { label = "    " .. displayName, value = tostring(e.count) })
         end
         return out
     end },
@@ -499,7 +500,7 @@ local function ResetStatKeys(keys)
     end
 end
 
-StaticPopupDialogs["PLAYERSTATS_RESET_STAT"] = {
+StaticPopupDialogs["PLAYERSTATISTICS_RESET_STAT"] = {
     text = "Reset \"%s\" for this character?",
     button1 = "Reset", button2 = "Cancel",
     OnAccept = function()
@@ -527,26 +528,61 @@ StaticPopupDialogs["PLAYERSTATS_RESET_STAT"] = {
 }
 
 -- ============ RIGHT-CLICK CONTEXT MENU ============
-local contextMenu = CreateFrame("Frame", "PlayerStatsContextMenu", UIParent, "UIDropDownMenuTemplate")
+local contextMenu = CreateFrame("Frame", "PlayerStatisticsContextMenu", UIParent, "UIDropDownMenuTemplate")
 
 local function ShowStatContextMenu(label, value, resetInfo)
     local cleanLabel = label:gsub("^%s+", "")
+    local reportMsg = "[PS] " .. cleanLabel .. ": " .. value
     local function InitMenu(self, level)
+        -- Title (non-interactive)
+        local title = UIDropDownMenu_CreateInfo()
+        title.text = cleanLabel
+        title.isTitle = true
+        title.notCheckable = true
+        UIDropDownMenu_AddButton(title, level)
+
+        -- Report to Say
         local info = UIDropDownMenu_CreateInfo()
-        info.text = "Report to Chat"
+        info.text = "Report to Say"
         info.notCheckable = true
-        info.func = function()
-            SendChatMessage("[PS] " .. cleanLabel .. ": " .. value, "SAY")
-        end
+        info.func = function() SendChatMessage(reportMsg, "SAY") end
         UIDropDownMenu_AddButton(info, level)
 
+        -- Report to Party
+        info = UIDropDownMenu_CreateInfo()
+        info.text = "Report to Party"
+        info.notCheckable = true
+        info.func = function() SendChatMessage(reportMsg, "PARTY") end
+        UIDropDownMenu_AddButton(info, level)
+
+        -- Report to Raid
+        info = UIDropDownMenu_CreateInfo()
+        info.text = "Report to Raid"
+        info.notCheckable = true
+        info.func = function() SendChatMessage(reportMsg, "RAID") end
+        UIDropDownMenu_AddButton(info, level)
+
+        -- Report to Guild
+        info = UIDropDownMenu_CreateInfo()
+        info.text = "Report to Guild"
+        info.notCheckable = true
+        info.func = function() SendChatMessage(reportMsg, "GUILD") end
+        UIDropDownMenu_AddButton(info, level)
+
+        -- Separator before Reset
         if resetInfo then
+            local sep = UIDropDownMenu_CreateInfo()
+            sep.text = ""
+            sep.isTitle = true
+            sep.notCheckable = true
+            UIDropDownMenu_AddButton(sep, level)
+
             info = UIDropDownMenu_CreateInfo()
-            info.text = "Reset"
+            info.text = "|cffff4444Reset|r"
             info.notCheckable = true
             info.func = function()
                 pendingReset = resetInfo
-                StaticPopup_Show("PLAYERSTATS_RESET_STAT", cleanLabel)
+                StaticPopup_Show("PLAYERSTATISTICS_RESET_STAT", cleanLabel)
             end
             UIDropDownMenu_AddButton(info, level)
         end
@@ -556,6 +592,8 @@ local function ShowStatContextMenu(label, value, resetInfo)
 end
 
 -- ============ RENDER STATS ============
+PS._expanded = {} -- collapsible section state (default collapsed)
+
 local function RenderStats(defs)
     HideRows()
     local s = PS:GetViewStats()
@@ -623,7 +661,14 @@ local function RenderStats(defs)
             row:SetPoint("RIGHT", 0, 0)
             row:SetHeight(22)
             row.sep:Hide()
-            row.label:SetText(def.label)
+
+            -- Collapsible indicator
+            local labelText = def.label
+            if def.collapsibleKey then
+                local expanded = PS._expanded[def.collapsibleKey]
+                labelText = (expanded and "- " or "+ ") .. def.label
+            end
+            row.label:SetText(labelText)
             row.label:SetTextColor(1, 0.82, 0)
 
             local val
@@ -644,8 +689,12 @@ local function RenderStats(defs)
             -- Right-click context menu (report to chat + reset)
             local rk = def.resetKeys or (def.key and {def.key} or nil)
             row:EnableMouse(true)
-            row:SetScript("OnMouseUp", function(self, button)
-                if button == "RightButton" then
+            local cKey = def.collapsibleKey
+            row:SetScript("OnMouseUp", function(_, button)
+                if button == "LeftButton" and cKey then
+                    PS._expanded[cKey] = not PS._expanded[cKey]
+                    if PS.RefreshUI then PS:RefreshUI() end
+                elseif button == "RightButton" then
                     local canReset = rk and PS.viewMode ~= "total" and not PS.viewCharKey
                     local resetInfo = canReset and { keys = rk } or nil
                     ShowStatContextMenu(def.label, val, resetInfo)
@@ -659,6 +708,8 @@ local function RenderStats(defs)
 end
 
 -- ============ PVE TAB ============
+local pveExpanded = {} -- tracks which instances are expanded (default collapsed)
+
 local function RenderPvE()
     HideRows()
     local s = PS:GetViewStats()
@@ -671,11 +722,15 @@ local function RenderPvE()
     idx = idx + 1
     y = y + AddSectionHeader(idx, y, "Overview")
 
+    local dBossN = s.dungeonBossKills or 0
+    local dBossH = s.dungeonBossKillsHeroic or 0
+    local dClearN = s.dungeonsCompleted or 0
+    local dClearH = s.dungeonsCompletedHeroic or 0
     local overviewStats = {
         { label = "Raid Boss Kills", value = tostring(s.raidBossKills or 0) },
         { label = "Raids Cleared", value = tostring(s.raidsCompleted or 0) },
-        { label = "Dungeon Boss Kills", value = tostring(s.dungeonBossKills or 0) },
-        { label = "Dungeons Cleared", value = tostring(s.dungeonsCompleted or 0) },
+        { label = "Dungeon Boss Kills", value = "|cffbbbbbb" .. dBossN .. "N|r  |cffff9900" .. dBossH .. "H|r" },
+        { label = "Dungeons Cleared", value = "|cffbbbbbb" .. dClearN .. "N|r  |cffff9900" .. dClearH .. "H|r" },
     }
 
     for _, stat in ipairs(overviewStats) do
@@ -709,8 +764,8 @@ local function RenderPvE()
     table.sort(raids, function(a, b) return a.name < b.name end)
     table.sort(dungeons, function(a, b) return a.name < b.name end)
 
-    -- Helper to render an instance section
-    local function RenderInstanceSection(sectionName, instances)
+    -- Helper: add a separator line
+    local function AddSep()
         idx = idx + 1
         local sep = GetRow(idx)
         sep:ClearAllPoints()
@@ -722,29 +777,40 @@ local function RenderPvE()
         sep:EnableMouse(false); sep:SetScript("OnMouseUp", nil)
         sep:Show()
         y = y + 14
+    end
 
+    -- Helper: "None recorded yet" placeholder
+    local function AddEmpty()
         idx = idx + 1
-        y = y + AddSectionHeader(idx, y, sectionName)
+        local row = GetRow(idx)
+        row:ClearAllPoints()
+        row:SetPoint("TOPLEFT", 0, -y)
+        row:SetPoint("RIGHT", 0, 0)
+        row:SetHeight(22)
+        row.sep:Hide()
+        row.label:SetText("  None recorded yet")
+        row.label:SetTextColor(0.5, 0.5, 0.5)
+        row.value:SetText("")
+        row.bg:Hide()
+        row:EnableMouse(false); row:SetScript("OnMouseUp", nil)
+        row:Show()
+        y = y + 22
+    end
 
-        if #instances == 0 then
-            idx = idx + 1
-            local row = GetRow(idx)
-            row:ClearAllPoints()
-            row:SetPoint("TOPLEFT", 0, -y)
-            row:SetPoint("RIGHT", 0, 0)
-            row:SetHeight(22)
-            row.sep:Hide()
-            row.label:SetText("  None recorded yet")
-            row.label:SetTextColor(0.5, 0.5, 0.5)
-            row.value:SetText("")
-            row.bg:Hide()
-            row:EnableMouse(false); row:SetScript("OnMouseUp", nil)
-            row:Show()
-            y = y + 22
-            return
-        end
+    -- ---- RAIDS (no heroic distinction, collapsible) ----
+    AddSep()
+    idx = idx + 1
+    y = y + AddSectionHeader(idx, y, "Raids")
 
-        for _, inst in ipairs(instances) do
+    if #raids == 0 then
+        AddEmpty()
+    else
+        for ri, inst in ipairs(raids) do
+            -- Padding between instances
+            if ri > 1 then y = y + 6 end
+
+            local expanded = pveExpanded[inst.name]
+            local arrow = expanded and "- " or "+ "
             idx = idx + 1
             visIdx = visIdx + 1
             local row = GetRow(idx)
@@ -753,48 +819,147 @@ local function RenderPvE()
             row:SetPoint("RIGHT", 0, 0)
             row:SetHeight(22)
             row.sep:Hide()
-            row.label:SetText(inst.name)
+            row.label:SetText(arrow .. inst.name)
             row.label:SetTextColor(0.4, 0.8, 1)
-            local normalClears = inst.data.completed or 0
-            local heroicClears = inst.data.completedHeroic or 0
-            local completedStr = ""
-            if normalClears > 0 or heroicClears > 0 then
-                completedStr = normalClears .. "N |cffff9900" .. heroicClears .. "H|r"
-            end
-            row.value:SetText(completedStr)
+            local clears = (inst.data.completed or 0)
+            row.value:SetText(clears > 0 and (clears .. " cleared") or "")
             if visIdx % 2 == 0 then row.bg:Show() else row.bg:Hide() end
-            row:EnableMouse(false); row:SetScript("OnMouseUp", nil)
+            row:EnableMouse(true)
+            local instName = inst.name
+            row:SetScript("OnMouseUp", function(_, button)
+                if button == "LeftButton" then
+                    pveExpanded[instName] = not pveExpanded[instName]
+                    RenderPvE()
+                end
+            end)
             row:Show()
             y = y + 22
 
-            local sortedBosses = {}
-            for boss, count in pairs(inst.data.bosses or {}) do
-                table.insert(sortedBosses, { name = boss, count = count })
-            end
-            table.sort(sortedBosses, function(a, b) return a.name < b.name end)
+            if expanded then
+                -- Boss kills (combine normal + heroic into one total)
+                local bosses = inst.data.bosses or {}
+                local bossesH = inst.data.bossesHeroic or {}
+                local allBossNames = {}
+                for boss in pairs(bosses) do allBossNames[boss] = true end
+                for boss in pairs(bossesH) do allBossNames[boss] = true end
+                local sortedBosses = {}
+                for boss in pairs(allBossNames) do
+                    table.insert(sortedBosses, { name = boss, kills = (bosses[boss] or 0) + (bossesH[boss] or 0) })
+                end
+                table.sort(sortedBosses, function(a, b) return a.name < b.name end)
 
-            for _, boss in ipairs(sortedBosses) do
-                idx = idx + 1
-                visIdx = visIdx + 1
-                local brow = GetRow(idx)
-                brow:ClearAllPoints()
-                brow:SetPoint("TOPLEFT", 0, -y)
-                brow:SetPoint("RIGHT", 0, 0)
-                brow:SetHeight(22)
-                brow.sep:Hide()
-                brow.label:SetText("  " .. boss.name)
-                brow.label:SetTextColor(0.7, 0.7, 0.8)
-                brow.value:SetText(tostring(boss.count))
-                if visIdx % 2 == 0 then brow.bg:Show() else brow.bg:Hide() end
-                brow:EnableMouse(false); brow:SetScript("OnMouseUp", nil)
-                brow:Show()
-                y = y + 22
+                for _, boss in ipairs(sortedBosses) do
+                    idx = idx + 1
+                    visIdx = visIdx + 1
+                    local brow = GetRow(idx)
+                    brow:ClearAllPoints()
+                    brow:SetPoint("TOPLEFT", 0, -y)
+                    brow:SetPoint("RIGHT", 0, 0)
+                    brow:SetHeight(22)
+                    brow.sep:Hide()
+                    brow.label:SetText("    " .. boss.name)
+                    brow.label:SetTextColor(0.7, 0.7, 0.8)
+                    brow.value:SetText(tostring(boss.kills))
+                    if visIdx % 2 == 0 then brow.bg:Show() else brow.bg:Hide() end
+                    brow:EnableMouse(false); brow:SetScript("OnMouseUp", nil)
+                    brow:Show()
+                    y = y + 22
+                end
             end
         end
     end
 
-    RenderInstanceSection("Raids", raids)
-    RenderInstanceSection("Dungeons", dungeons)
+    -- ---- DUNGEONS (Normal / Heroic columns, collapsible) ----
+    AddSep()
+    idx = idx + 1
+    y = y + AddSectionHeader(idx, y, "Dungeons")
+
+    if #dungeons == 0 then
+        AddEmpty()
+    else
+        -- Column header row
+        idx = idx + 1
+        local hdr = GetRow(idx)
+        hdr:ClearAllPoints()
+        hdr:SetPoint("TOPLEFT", 0, -y)
+        hdr:SetPoint("RIGHT", 0, 0)
+        hdr:SetHeight(18)
+        hdr.sep:Hide()
+        hdr.label:SetText("")
+        hdr.value:SetText("|cffbbbbbbN|r  |cffff9900H|r")
+        hdr.bg:Hide()
+        hdr:EnableMouse(false); hdr:SetScript("OnMouseUp", nil)
+        hdr:Show()
+        y = y + 18
+
+        for di, inst in ipairs(dungeons) do
+            -- Padding between instances
+            if di > 1 then y = y + 6 end
+
+            local expanded = pveExpanded[inst.name]
+            local arrow = expanded and "- " or "+ "
+            idx = idx + 1
+            visIdx = visIdx + 1
+            local row = GetRow(idx)
+            row:ClearAllPoints()
+            row:SetPoint("TOPLEFT", 0, -y)
+            row:SetPoint("RIGHT", 0, 0)
+            row:SetHeight(22)
+            row.sep:Hide()
+            row.label:SetText(arrow .. inst.name)
+            row.label:SetTextColor(0.4, 0.8, 1)
+            local nClears = inst.data.completed or 0
+            local hClears = inst.data.completedHeroic or 0
+            local clearStr = ""
+            if nClears > 0 or hClears > 0 then
+                clearStr = string.format("|cffbbbbbb%d|r  |cffff9900%d|r", nClears, hClears)
+            end
+            row.value:SetText(clearStr)
+            if visIdx % 2 == 0 then row.bg:Show() else row.bg:Hide() end
+            row:EnableMouse(true)
+            local instName = inst.name
+            row:SetScript("OnMouseUp", function(_, button)
+                if button == "LeftButton" then
+                    pveExpanded[instName] = not pveExpanded[instName]
+                    RenderPvE()
+                end
+            end)
+            row:Show()
+            y = y + 22
+
+            if expanded then
+                -- Boss kills with N / H columns
+                local normalBosses = inst.data.bosses or {}
+                local heroicBosses = inst.data.bossesHeroic or {}
+                local allBossNames = {}
+                for boss in pairs(normalBosses) do allBossNames[boss] = true end
+                for boss in pairs(heroicBosses) do allBossNames[boss] = true end
+                local sortedBosses = {}
+                for boss in pairs(allBossNames) do
+                    table.insert(sortedBosses, { name = boss, normal = normalBosses[boss] or 0, heroic = heroicBosses[boss] or 0 })
+                end
+                table.sort(sortedBosses, function(a, b) return a.name < b.name end)
+
+                for _, boss in ipairs(sortedBosses) do
+                    idx = idx + 1
+                    visIdx = visIdx + 1
+                    local brow = GetRow(idx)
+                    brow:ClearAllPoints()
+                    brow:SetPoint("TOPLEFT", 0, -y)
+                    brow:SetPoint("RIGHT", 0, 0)
+                    brow:SetHeight(22)
+                    brow.sep:Hide()
+                    brow.label:SetText("    " .. boss.name)
+                    brow.label:SetTextColor(0.7, 0.7, 0.8)
+                    brow.value:SetText(string.format("|cffbbbbbb%d|r  |cffff9900%d|r", boss.normal, boss.heroic))
+                    if visIdx % 2 == 0 then brow.bg:Show() else brow.bg:Hide() end
+                    brow:EnableMouse(false); brow:SetScript("OnMouseUp", nil)
+                    brow:Show()
+                    y = y + 22
+                end
+            end
+        end
+    end
 
     content:SetHeight(math.max(1, y))
 end
@@ -806,21 +971,72 @@ spellHeaders:SetPoint("TOPRIGHT", -28, -56)
 spellHeaders:SetHeight(18)
 spellHeaders:Hide()
 
-local function MakeHeader(parent, text, anchor, xOff, width)
-    local fs = parent:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    fs:SetPoint("LEFT", parent, anchor, xOff, 0)
-    fs:SetWidth(width)
-    fs:SetJustifyH("LEFT")
-    fs:SetText(text)
-    fs:SetTextColor(0.6, 0.6, 0.6)
-    return fs
+-- Spell sort state
+local spellSortKey = "total"  -- default sort column
+local spellSortAsc = false    -- default descending
+
+local spellHeaderButtons = {}
+local spellHeaderDefs = {
+    { key = "name",    label = "Spell",   xOff = 6,   width = 155, align = "LEFT" },
+    { key = "casts",   label = "Casts",   xOff = 164, width = 45,  align = "RIGHT" },
+    { key = "highest", label = "Highest", xOff = 214, width = 58,  align = "RIGHT" },
+    { key = "total",   label = "Total",   xOff = 276, width = 58,  align = "RIGHT" },
+    { key = "avg",     label = "Avg",     xOff = 338, width = 58,  align = "RIGHT" },
+}
+
+local function UpdateSpellHeaderText()
+    for _, hd in ipairs(spellHeaderDefs) do
+        local btn = spellHeaderButtons[hd.key]
+        if btn then
+            local arrow = ""
+            if spellSortKey == hd.key then
+                arrow = spellSortAsc and " ^" or " v"
+            end
+            if spellSortKey == hd.key then
+                btn.fs:SetTextColor(1, 0.82, 0)
+            else
+                btn.fs:SetTextColor(0.6, 0.6, 0.6)
+            end
+            btn.fs:SetText(hd.label .. arrow)
+        end
+    end
 end
 
-MakeHeader(spellHeaders, "Spell", "LEFT", 8, 120)
-MakeHeader(spellHeaders, "Casts", "LEFT", 135, 40)
-MakeHeader(spellHeaders, "Highest", "LEFT", 180, 55)
-MakeHeader(spellHeaders, "Total", "LEFT", 240, 55)
-MakeHeader(spellHeaders, "Avg", "LEFT", 300, 55)
+for _, hd in ipairs(spellHeaderDefs) do
+    local btn = CreateFrame("Button", nil, spellHeaders)
+    btn:SetPoint("LEFT", spellHeaders, "LEFT", hd.xOff, 0)
+    btn:SetSize(hd.width, 20)
+    btn.fs = btn:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    btn.fs:SetPoint(hd.align)
+    btn.fs:SetWidth(hd.width)
+    btn.fs:SetJustifyH(hd.align)
+    btn.fs:SetText(hd.label)
+    btn.fs:SetTextColor(0.6, 0.6, 0.6)
+    btn:SetScript("OnEnter", function(self) self.fs:SetTextColor(1, 1, 1) end)
+    btn:SetScript("OnLeave", function(self)
+        if spellSortKey == hd.key then self.fs:SetTextColor(1, 0.82, 0)
+        else self.fs:SetTextColor(0.6, 0.6, 0.6) end
+    end)
+    btn:SetScript("OnClick", function()
+        if spellSortKey == hd.key then
+            spellSortAsc = not spellSortAsc
+        else
+            spellSortKey = hd.key
+            spellSortAsc = (hd.key == "name") -- name defaults asc, numbers desc
+        end
+        UpdateSpellHeaderText()
+        if PS.RefreshUI then PS:RefreshUI() end
+    end)
+    spellHeaderButtons[hd.key] = btn
+end
+UpdateSpellHeaderText()
+
+-- Separator line under spell headers
+local spellHeaderSep = spellHeaders:CreateTexture(nil, "ARTWORK")
+spellHeaderSep:SetHeight(1)
+spellHeaderSep:SetPoint("BOTTOMLEFT", 0, -1)
+spellHeaderSep:SetPoint("BOTTOMRIGHT", 0, -1)
+spellHeaderSep:SetColorTexture(0.4, 0.4, 0.45, 0.8)
 
 local spellScroll = CreateFrame("ScrollFrame", nil, f, "UIPanelScrollFrameTemplate")
 spellScroll:SetPoint("TOPLEFT", 10, -74)
@@ -837,34 +1053,35 @@ local spellRows = {}
 local function GetSpellRow(idx)
     if spellRows[idx] then return spellRows[idx] end
     local row = CreateFrame("Frame", nil, spellContent)
-    row:SetHeight(18)
+    row:SetHeight(20)
 
-    row.name = row:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    row.name:SetPoint("LEFT", 8, 0)
-    row.name:SetWidth(120)
+    row.name = row:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    row.name:SetPoint("LEFT", 6, 0)
+    row.name:SetWidth(155)
     row.name:SetJustifyH("LEFT")
+    row.name:SetWordWrap(false)
     row.name:SetTextColor(1, 1, 1)
 
-    row.casts = row:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    row.casts:SetPoint("LEFT", 135, 0)
-    row.casts:SetWidth(40)
-    row.casts:SetJustifyH("LEFT")
+    row.casts = row:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    row.casts:SetPoint("LEFT", 164, 0)
+    row.casts:SetWidth(45)
+    row.casts:SetJustifyH("RIGHT")
     row.casts:SetTextColor(0.8, 0.8, 0.8)
 
-    row.highest = row:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    row.highest:SetPoint("LEFT", 180, 0)
-    row.highest:SetWidth(55)
-    row.highest:SetJustifyH("LEFT")
+    row.highest = row:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    row.highest:SetPoint("LEFT", 214, 0)
+    row.highest:SetWidth(58)
+    row.highest:SetJustifyH("RIGHT")
 
-    row.total = row:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    row.total:SetPoint("LEFT", 240, 0)
-    row.total:SetWidth(55)
-    row.total:SetJustifyH("LEFT")
+    row.total = row:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    row.total:SetPoint("LEFT", 276, 0)
+    row.total:SetWidth(58)
+    row.total:SetJustifyH("RIGHT")
 
-    row.avg = row:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    row.avg:SetPoint("LEFT", 300, 0)
-    row.avg:SetWidth(55)
-    row.avg:SetJustifyH("LEFT")
+    row.avg = row:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    row.avg:SetPoint("LEFT", 338, 0)
+    row.avg:SetWidth(58)
+    row.avg:SetJustifyH("RIGHT")
 
     row.bg = row:CreateTexture(nil, "BACKGROUND")
     row.bg:SetAllPoints()
@@ -878,18 +1095,35 @@ local function RenderSpells()
     for _, r in pairs(spellRows) do r:Hide() end
     if not PS.db then return end
 
+    local spells = PS:GetViewSpells()
     local sorted = {}
-    for id, data in pairs(PS.db.spells) do
+    for id, data in pairs(spells) do
         if data.casts > 0 or data.damage > 0 or data.healing > 0 then
             data._id = id
+            -- Pre-compute sort values
+            data._total = math.max(data.damage, data.healing)
+            data._avg = data.casts > 0 and (data._total / data.casts) or 0
             table.insert(sorted, data)
         end
     end
+
+    local function getSortVal(sp)
+        if spellSortKey == "name" then return (sp.name or ""):lower()
+        elseif spellSortKey == "casts" then return sp.casts
+        elseif spellSortKey == "highest" then return sp.highestHit or 0
+        elseif spellSortKey == "total" then return sp._total
+        elseif spellSortKey == "avg" then return sp._avg
+        end
+        return sp._total
+    end
+
     table.sort(sorted, function(a, b)
-        local aTotal = math.max(a.damage, a.healing)
-        local bTotal = math.max(b.damage, b.healing)
-        if aTotal == bTotal then return a.casts > b.casts end
-        return aTotal > bTotal
+        local va, vb = getSortVal(a), getSortVal(b)
+        if va == vb then
+            -- Tiebreak: name ascending
+            return (a.name or ""):lower() < (b.name or ""):lower()
+        end
+        if spellSortAsc then return va < vb else return va > vb end
     end)
 
     local y = 0
@@ -942,7 +1176,7 @@ local function RenderSpells()
             end
         end)
 
-        y = y + 18
+        y = y + 20
     end
 
     if #sorted == 0 then
@@ -1109,7 +1343,7 @@ resetBtn:SetSize(140, 22)
 resetBtn:SetPoint("TOPLEFT", 16, sy)
 resetBtn:SetText("Reset Char Stats")
 resetBtn:SetScript("OnClick", function()
-    StaticPopup_Show("PLAYERSTATS_CONFIRM_RESET")
+    StaticPopup_Show("PLAYERSTATISTICS_CONFIRM_RESET")
 end)
 sy = sy - 26
 
@@ -1118,7 +1352,7 @@ resetAllBtn:SetSize(180, 22)
 resetAllBtn:SetPoint("TOPLEFT", 16, sy)
 resetAllBtn:SetText("Reset All Characters")
 resetAllBtn:SetScript("OnClick", function()
-    StaticPopup_Show("PLAYERSTATS_CONFIRM_RESET_ALL")
+    StaticPopup_Show("PLAYERSTATISTICS_CONFIRM_RESET_ALL")
 end)
 sy = sy - 26
 
@@ -1219,7 +1453,7 @@ end
 local uiInit = CreateFrame("Frame")
 uiInit:RegisterEvent("ADDON_LOADED")
 uiInit:SetScript("OnEvent", function(self, event, arg1)
-    if event == "ADDON_LOADED" and arg1 == "PlayerStats" then
+    if event == "ADDON_LOADED" and arg1 == "PlayerStatistics" then
         C_Timer.After(0.1, function()
             local pos = PlayerStatsDB and PlayerStatsDB.miniPos
             if pos and pos.point then

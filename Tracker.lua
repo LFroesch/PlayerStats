@@ -1,5 +1,5 @@
--- PlayerStats: Event tracking for all statistics
-local PS = PlayerStats
+-- PlayerStatistics: Event tracking for all statistics
+local PS = PlayerStatistics
 
 local HEARTHSTONE_SPELL    = 8690
 local ASTRAL_RECALL_SPELL = 556
@@ -182,53 +182,97 @@ local bossKillCooldowns = {}
 -- ============ BOSS NPC DATABASE ============
 -- { [npcID] = { bossName, instanceName, isFinalBoss } }
 local BOSS_DATABASE = {
-    -- === TBC DUNGEONS (Final Bosses) ===
-    [18373] = { "Epoch Hunter", "Old Hillsbrad Foothills", true },
-    [17881] = { "Aeonus", "The Black Morass", true },
-    [17882] = { "Temporus", "The Black Morass", false },
-    [17880] = { "Chrono Lord Deja", "The Black Morass", false },
+    -- === TBC DUNGEONS ===
+    -- Hellfire Ramparts
+    [17381] = { "Watchkeeper Gargolmar", "Hellfire Ramparts", false },
+    [17380] = { "Omor the Unscarred", "Hellfire Ramparts", false },
+    [17536] = { "Nazan", "Hellfire Ramparts", true },
+    [17537] = { "Vazruden the Herald", "Hellfire Ramparts", true },
+    -- The Blood Furnace
+    [17670] = { "The Maker", "The Blood Furnace", false },
+    [17711] = { "Broggok", "The Blood Furnace", false },
+    [17377] = { "Keli'dan the Breaker", "The Blood Furnace", true },
+    -- The Shattered Halls
+    [16807] = { "Grand Warlock Nethekurse", "The Shattered Halls", false },
+    [16809] = { "Warbringer O'mrogg", "The Shattered Halls", false },
     [16808] = { "Warchief Kargath Bladefist", "The Shattered Halls", true },
-    [17798] = { "Warlord Kalithresh", "The Steamvault", true },
+    -- The Slave Pens
+    [17941] = { "Mennu the Betrayer", "The Slave Pens", false },
+    [17938] = { "Rokmar the Crackler", "The Slave Pens", false },
+    [17942] = { "Quagmirran", "The Slave Pens", true },
+    -- The Underbog
+    [17770] = { "Hungarfen", "The Underbog", false },
+    [18105] = { "Ghaz'an", "The Underbog", false },
+    [17991] = { "The Black Stalker", "The Underbog", true },
+    -- The Steamvault
     [17797] = { "Hydromancer Thespia", "The Steamvault", false },
     [17796] = { "Mekgineer Steamrigger", "The Steamvault", false },
-    [17942] = { "Quagmirran", "The Slave Pens", true },
-    [17991] = { "The Black Stalker", "The Underbog", true },
+    [17798] = { "Warlord Kalithresh", "The Steamvault", true },
+    -- Mana-Tombs
+    [18341] = { "Pandemonius", "Mana-Tombs", false },
+    [18343] = { "Tavarok", "Mana-Tombs", false },
     [18344] = { "Nexus-Prince Shaffar", "Mana-Tombs", true },
-    [18373] = { "Epoch Hunter", "Old Hillsbrad Foothills", true },
-    [18096] = { "Epoch Hunter", "Old Hillsbrad Foothills", true },
-    [18708] = { "Murmur", "Shadow Labyrinth", true },
+    -- Auchenai Crypts
+    [18371] = { "Shirrak the Dead Watcher", "Auchenai Crypts", false },
+    [18472] = { "Exarch Maladaar", "Auchenai Crypts", true },
+    -- Sethekk Halls
+    [18473] = { "Darkweaver Syth", "Sethekk Halls", false },
+    [18521] = { "Anzu", "Sethekk Halls", false },
+    [18478] = { "Talon King Ikiss", "Sethekk Halls", true },
+    -- Shadow Labyrinth
     [18731] = { "Ambassador Hellmaw", "Shadow Labyrinth", false },
     [18667] = { "Blackheart the Inciter", "Shadow Labyrinth", false },
     [18732] = { "Grandmaster Vorpil", "Shadow Labyrinth", false },
+    [18708] = { "Murmur", "Shadow Labyrinth", true },
+    -- Old Hillsbrad Foothills
+    [17848] = { "Lieutenant Drake", "Old Hillsbrad Foothills", false },
+    [17862] = { "Captain Skarloc", "Old Hillsbrad Foothills", false },
+    [18096] = { "Epoch Hunter", "Old Hillsbrad Foothills", true },
+    -- The Black Morass
+    [17880] = { "Chrono Lord Deja", "The Black Morass", false },
+    [17882] = { "Temporus", "The Black Morass", false },
+    [17881] = { "Aeonus", "The Black Morass", true },
+    -- The Mechanar
+    [19218] = { "Gatewatcher Gyro-Kill", "The Mechanar", false },
+    [19221] = { "Gatewatcher Iron-Hand", "The Mechanar", false },
+    [19219] = { "Mechano-Lord Capacitus", "The Mechanar", false },
+    [19220] = { "Pathaleon the Calculator", "The Mechanar", true },
+    -- The Botanica
+    [17976] = { "Commander Sarannis", "The Botanica", false },
+    [17975] = { "High Botanist Freywinn", "The Botanica", false },
+    [17978] = { "Thorngrin the Tender", "The Botanica", false },
+    [17980] = { "Laj", "The Botanica", false },
     [17977] = { "Warp Splinter", "The Botanica", true },
+    -- The Arcatraz
     [20870] = { "Zereketh the Unbound", "The Arcatraz", false },
     [20885] = { "Dalliah the Doomsayer", "The Arcatraz", false },
     [20886] = { "Wrath-Scryer Soccothrates", "The Arcatraz", false },
     [20912] = { "Harbinger Skyriss", "The Arcatraz", true },
-    [19220] = { "Pathaleon the Calculator", "The Mechanar", true },
-    [19219] = { "Mechano-Lord Capacitus", "The Mechanar", false },
-    [19218] = { "Gatewatcher Gyro-Kill", "The Mechanar", false },
-    [19221] = { "Gatewatcher Iron-Hand", "The Mechanar", false },
-    [17536] = { "Nazan", "Hellfire Ramparts", true },
-    [17537] = { "Vazruden the Herald", "Hellfire Ramparts", true },
-    [17381] = { "Watchkeeper Gargolmar", "Hellfire Ramparts", false },
-    [17380] = { "Omor the Unscarred", "Hellfire Ramparts", false },
-    [17377] = { "Keli'dan the Breaker", "The Blood Furnace", true },
-    [17711] = { "Broggok", "The Blood Furnace", false },
-    [17670] = { "The Maker", "The Blood Furnace", false },
-    [18472] = { "Exarch Maladaar", "Auchenai Crypts", true },
-    [18371] = { "Shirrak the Dead Watcher", "Auchenai Crypts", false },
-    [18478] = { "Talon King Ikiss", "Sethekk Halls", true },
-    [18473] = { "Darkweaver Syth", "Sethekk Halls", false },
-    [18521] = { "Anzu", "Sethekk Halls", false },
-    [20266] = { "Aeonus", "The Black Morass", true },
+    -- Magisters' Terrace
+    [24723] = { "Selin Fireheart", "Magisters' Terrace", false },
+    [24744] = { "Vexallus", "Magisters' Terrace", false },
+    [24560] = { "Priestess Delrissa", "Magisters' Terrace", false },
+    [24664] = { "Kael'thas Sunstrider", "Magisters' Terrace", true },
 
     -- === TBC RAIDS ===
     -- Karazhan
     [15550] = { "Attumen the Huntsman", "Karazhan", false },
     [16151] = { "Midnight", "Karazhan", false },
+    [16152] = { "Attumen the Huntsman", "Karazhan", false }, -- mounted form
     [15687] = { "Moroes", "Karazhan", false },
     [16457] = { "Maiden of Virtue", "Karazhan", false },
+    -- Opera Event
+    [17521] = { "The Big Bad Wolf", "Karazhan", false },
+    [17534] = { "Julianne", "Karazhan", false },
+    [17533] = { "Romulo", "Karazhan", false },
+    [18168] = { "The Crone", "Karazhan", false },         -- Wizard of Oz
+    -- Chess Event (enemy king dies based on player faction)
+    [21752] = { "Chess Event", "Karazhan", false },  -- Warchief Blackhand (Alliance kills)
+    [21684] = { "Chess Event", "Karazhan", false },  -- King Llane (Horde kills)
+    -- Servants' Quarters
+    [16179] = { "Hyakiss the Lurker", "Karazhan", false },
+    [16180] = { "Shadikith the Glider", "Karazhan", false },
+    [16181] = { "Rokad the Ravager", "Karazhan", false },
     [15691] = { "The Curator", "Karazhan", false },
     [15688] = { "Terestian Illhoof", "Karazhan", false },
     [16524] = { "Shade of Aran", "Karazhan", false },
@@ -358,7 +402,7 @@ local BOSS_DATABASE = {
     [10363] = { "General Drakkisath", "Upper Blackrock Spire", true },
     [9568]  = { "Overlord Wyrmthalak", "Lower Blackrock Spire", true },
     [5709]  = { "Shade of Eranikus", "Sunken Temple", true },
-    [7358]  = { "Chief Ukorz Sandscalp", "Zul'Farrak", true },
+    [7267]  = { "Chief Ukorz Sandscalp", "Zul'Farrak", true },
     [4829]  = { "Aku'mai", "Blackfathom Deeps", true },
     [7800]  = { "Mekgineer Thermaplugg", "Gnomeregan", true },
     [4421]  = { "Charlga Razorflank", "Razorfen Kraul", true },
@@ -484,7 +528,7 @@ tracker:SetScript("OnEvent", function(self, event, ...)
                 db.stats.pvpKills = db.stats.pvpKills + 1
                 PS.sessionPvPKills = PS.sessionPvPKills + 1
                 if PS.settings and PS.settings.pvpKillSound then
-                    PlaySoundFile("Interface\\AddOns\\PlayerStats\\sound_files\\kaching.ogg", "Master")
+                    PlaySoundFile("Interface\\AddOns\\PlayerStatistics\\sound_files\\kaching.ogg", "Master")
                 end
                 if PS.OnPvPKill then PS:OnPvPKill(destName) end
                 -- Per-BG kill tracking
@@ -520,21 +564,40 @@ tracker:SetScript("OnEvent", function(self, event, ...)
             if amount and amount > 0 then
                 db.stats.totalDamage = db.stats.totalDamage + amount
                 PS.sessionDamage = PS.sessionDamage + amount
-                if amount > db.stats.highestHit then
+                -- Only count hostile targets for highest hit (skip self-damage, boss reflects, friendly fire)
+                if destIsHostile and amount > db.stats.highestHit then
                     db.stats.highestHit = amount
                     db.stats.highestHitSpell = spellName or "Melee"
                     db.stats.highestHitTarget = destName or ""
                 end
                 if critical then db.stats.critCount = db.stats.critCount + 1 end
-                if isMe and spellId and spellId > 0 then
-                    if not db.spells[spellId] then
-                        db.spells[spellId] = { name = spellName, casts = 0, damage = 0, healing = 0, crits = 0, highestHit = 0 }
+                -- Per-spell tracking (player only)
+                if isMe then
+                    if subevent == "SWING_DAMAGE" then
+                        -- Synthetic "Melee" entry for white melee hits
+                        if not db.spells["melee"] then
+                            db.spells["melee"] = { name = "Melee", casts = 0, damage = 0, healing = 0, crits = 0, highestHit = 0 }
+                        end
+                        db.spells["melee"].casts = db.spells["melee"].casts + 1
+                        db.spells["melee"].damage = db.spells["melee"].damage + amount
+                        if amount > (db.spells["melee"].highestHit or 0) then
+                            db.spells["melee"].highestHit = amount
+                        end
+                        if critical then db.spells["melee"].crits = db.spells["melee"].crits + 1 end
+                    elseif spellId and spellId > 0 then
+                        if not db.spells[spellId] then
+                            db.spells[spellId] = { name = spellName, casts = 0, damage = 0, healing = 0, crits = 0, highestHit = 0 }
+                        end
+                        db.spells[spellId].damage = db.spells[spellId].damage + amount
+                        if amount > (db.spells[spellId].highestHit or 0) then
+                            db.spells[spellId].highestHit = amount
+                        end
+                        if critical then db.spells[spellId].crits = db.spells[spellId].crits + 1 end
+                        -- Increment hits for auto-attacks (RANGE_DAMAGE) since they don't fire SPELL_CAST_SUCCESS
+                        if subevent == "RANGE_DAMAGE" then
+                            db.spells[spellId].casts = db.spells[spellId].casts + 1
+                        end
                     end
-                    db.spells[spellId].damage = db.spells[spellId].damage + amount
-                    if amount > (db.spells[spellId].highestHit or 0) then
-                        db.spells[spellId].highestHit = amount
-                    end
-                    if critical then db.spells[spellId].crits = db.spells[spellId].crits + 1 end
                 end
 
                 -- Pet killing blow detection
@@ -547,7 +610,7 @@ tracker:SetScript("OnEvent", function(self, event, ...)
                         db.stats.pvpKills = db.stats.pvpKills + 1
                         PS.sessionPvPKills = PS.sessionPvPKills + 1
                         if PS.settings and PS.settings.pvpKillSound then
-                            PlaySoundFile("Interface\\AddOns\\PlayerStats\\sound_files\\kaching.ogg", "Master")
+                            PlaySoundFile("Interface\\AddOns\\PlayerStatistics\\sound_files\\kaching.ogg", "Master")
                         end
                         if PS.OnPvPKill then PS:OnPvPKill(destName) end
                         if inBG and bgName then
@@ -647,33 +710,45 @@ tracker:SetScript("OnEvent", function(self, event, ...)
                     local isFinalBoss = bossInfo[3]
 
                     local isRaid = RAID_INSTANCES[instanceName]
+                    -- select(3, GetInstanceInfo()) returns difficultyID: 173=Normal, 174=Heroic on TBC Anniversary client
+                    local _, _, difficultyID = GetInstanceInfo()
+                    local isHeroic = (difficultyID == 174)
+
                     db.stats.bossKills = (db.stats.bossKills or 0) + 1
 
                     if isRaid then
                         db.stats.raidBossKills = (db.stats.raidBossKills or 0) + 1
+                    elseif isHeroic then
+                        db.stats.dungeonBossKillsHeroic = (db.stats.dungeonBossKillsHeroic or 0) + 1
                     else
                         db.stats.dungeonBossKills = (db.stats.dungeonBossKills or 0) + 1
                     end
 
-                    -- Track per-instance boss kills
+                    -- Track per-instance boss kills (split normal/heroic for dungeons)
                     if not db.pveStats[instanceName] then
                         db.pveStats[instanceName] = { bosses = {}, completed = 0 }
                     end
-                    db.pveStats[instanceName].bosses[bossName] = (db.pveStats[instanceName].bosses[bossName] or 0) + 1
+                    if isHeroic then
+                        if not db.pveStats[instanceName].bossesHeroic then
+                            db.pveStats[instanceName].bossesHeroic = {}
+                        end
+                        db.pveStats[instanceName].bossesHeroic[bossName] = (db.pveStats[instanceName].bossesHeroic[bossName] or 0) + 1
+                    else
+                        db.pveStats[instanceName].bosses[bossName] = (db.pveStats[instanceName].bosses[bossName] or 0) + 1
+                    end
 
                     -- Final boss = instance cleared
                     if isFinalBoss then
-                        local difficulty = GetInstanceDifficulty and GetInstanceDifficulty() or 1
-                        local isHeroic = (difficulty == 2) and not isRaid
                         if isHeroic then
                             db.pveStats[instanceName].completedHeroic = (db.pveStats[instanceName].completedHeroic or 0) + 1
+                            db.stats.dungeonsCompletedHeroic = (db.stats.dungeonsCompletedHeroic or 0) + 1
                         else
                             db.pveStats[instanceName].completed = (db.pveStats[instanceName].completed or 0) + 1
-                        end
-                        if isRaid then
-                            db.stats.raidsCompleted = (db.stats.raidsCompleted or 0) + 1
-                        else
-                            db.stats.dungeonsCompleted = (db.stats.dungeonsCompleted or 0) + 1
+                            if isRaid then
+                                db.stats.raidsCompleted = (db.stats.raidsCompleted or 0) + 1
+                            else
+                                db.stats.dungeonsCompleted = (db.stats.dungeonsCompleted or 0) + 1
+                            end
                         end
                     end
                 end
